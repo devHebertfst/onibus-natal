@@ -106,6 +106,14 @@ i {
     color: var(--placa-texto-2);
   }
 
+  /* Advertência ganha o losango da placa amarela. */
+  &.alerta .luz {
+    width: 8px;
+    height: 8px;
+    border-radius: 1px;
+    transform: rotate(45deg);
+  }
+
   &.neutro .luz {
     opacity: 0.6;
   }
@@ -120,6 +128,44 @@ i {
     .idade {
       color: var(--adv-texto);
     }
+  }
+}
+
+.identidade {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Escudo de rodovia branco com o número da linha. */
+.escudo-linha {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 44px;
+  margin: -2px 0;
+
+  svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    fill: #fff;
+    stroke: var(--placa-escura);
+    stroke-width: 1.5;
+  }
+
+  b {
+    position: relative;
+    margin-top: -5px;
+    color: #1b1f22;
+    font-size: 16px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
   }
 }
 
@@ -152,8 +198,8 @@ i {
     }
 
     &[aria-pressed='true'] {
-      background: var(--texto);
-      color: var(--chao);
+      background: var(--placa);
+      color: var(--placa-texto);
     }
   }
 }
@@ -298,10 +344,24 @@ i {
   line-height: 1.4;
 
   /* Erro: placa de regulamentação, branca com borda vermelha. */
+  /* Erro: placa de regulamentação, branca com borda vermelha e o anel. */
   &.erro {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
     border: 2px solid var(--reg);
     background: var(--reg-fundo);
     color: var(--texto);
+
+    &::before {
+      content: '';
+      flex: none;
+      width: 12px;
+      height: 12px;
+      margin-top: 3px;
+      border: 3px solid var(--reg);
+      border-radius: 50%;
+    }
   }
 
   &.adv {
@@ -411,9 +471,10 @@ i {
 }
 
 .lista-paradas {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  /* Linhas separadas por régua, como as linhas da placa (sem cartões). */
+  > li + li {
+    border-top: 1px solid var(--linha);
+  }
 
   button {
     display: flex;
@@ -421,17 +482,15 @@ i {
     gap: 12px;
     width: 100%;
     min-height: 56px;
-    padding: 10px 12px;
+    padding: 10px 4px;
     box-sizing: border-box;
-    border: 1px solid var(--linha);
-    border-radius: var(--raio);
-    background: var(--chao);
+    border: 0;
+    background: none;
     text-align: left;
     cursor: pointer;
 
     @media (hover: hover) {
       &:hover {
-        border-color: var(--linha-forte);
         background: var(--chao-2);
       }
     }
@@ -559,9 +618,9 @@ i {
 }
 
 .frota {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  > li + li {
+    border-top: 1px solid var(--linha);
+  }
 
   button {
     display: flex;
@@ -569,24 +628,33 @@ i {
     gap: 12px;
     width: 100%;
     min-height: 56px;
-    padding: 8px 12px;
+    padding: 8px 4px;
     box-sizing: border-box;
-    border: 1px solid var(--linha);
-    border-radius: var(--raio);
-    background: var(--chao);
+    border: 0;
+    background: none;
     text-align: left;
     cursor: pointer;
 
     @media (hover: hover) {
       &:hover {
-        border-color: var(--linha-forte);
+        background: var(--chao-2);
       }
     }
 
+    /* Ônibus seguido: a linha inteira invertida, como a placa. */
     &.selecionado {
-      border: 2px solid var(--texto);
-      padding: 7px 11px;
-      background: var(--chao-2);
+      padding-inline: 10px;
+      border-radius: 4px;
+      background: var(--texto);
+      color: var(--chao);
+
+      .num {
+        color: var(--chao-3);
+      }
+
+      i {
+        box-shadow: 0 0 0 2px var(--chao);
+      }
     }
   }
 
@@ -752,7 +820,7 @@ footer {
     transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 
     &[data-gaveta='baixa'] {
-      --desloca: calc(var(--h-gaveta-alta) - 40dvh);
+      --desloca: calc(var(--h-gaveta-alta) - var(--h-baixa, 40dvh));
     }
 
     &[data-gaveta='media'] {

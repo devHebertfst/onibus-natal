@@ -42,6 +42,8 @@ export class App {
   protected readonly temaService = inject(TemaService);
   private readonly mapa = viewChild.required(Mapa);
   private readonly campo = viewChild.required<ElementRef<HTMLInputElement>>('campo');
+  private readonly host: HTMLElement = inject(ElementRef).nativeElement;
+  private alturaBaixaPx = 0;
   private assinatura?: Subscription;
   private timerAviso?: ReturnType<typeof setTimeout>;
   /** Parada pedida no link (`?parada=`), aplicada quando a linha chegar. */
@@ -199,7 +201,8 @@ export class App {
         const ref = this.paradaPendente ?? this.fav.meuPonto(n);
         this.paradaPendente = null;
         const p = ref ? acharPonto(pontos, ref) : undefined;
-        if (p) this.escolherPonto(p.chave, false);
+        // Depois do mapa aplicar os dados, para enquadrar o ponto com o próximo ônibus.
+        if (p) setTimeout(() => this.escolherPonto(p.chave));
       });
     });
 
@@ -228,7 +231,8 @@ export class App {
     this.assinatura?.unsubscribe();
     this.numero.set(numero);
     this.valorCampo.set(numero);
-    if (this.gaveta() === 'baixa') this.gaveta.set('media');
+    // A gaveta desce até o tamanho do conteúdo: o mapa é a prova, não pode sumir.
+    this.gaveta.set('baixa');
     this.dados.set(null);
     this.erro.set(null);
     this.status.set(null);
@@ -297,8 +301,19 @@ export class App {
     this.chegandoAnunciado.clear();
     this.listaAberta.set(false);
     this.atualizarUrl();
+    this.gaveta.set('baixa');
     this.tique();
-    if (mover) this.mapa().irPara(p.lat, p.lng);
+    if (mover) {
+      // Enquadra o ponto junto com o próximo ônibus a chegar, acima da gaveta.
+      const proximo = this.sentidosPlaca()
+        .map((s) => s.previsoes[0])
+        .filter((x) => !!x)
+        .sort((a, b) => a.minutos - b.minutos)[0];
+      requestAnimationFrame(() => {
+        this.medirGaveta();
+        this.mapa().enquadrarPonto(p.lat, p.lng, proximo?.onibus ?? null, this.folgasMapa());
+      });
+    }
     this.anuncio.set(`Ponto escolhido: ${p.nome}`);
   }
 
@@ -325,7 +340,10 @@ export class App {
     this.avisoLocal.set(null);
     const problema = await this.local.pedir();
     this.avisoLocal.set(problema);
-    if (!problema) this.anuncio.set(`${this.proximos().length} paradas perto de você`);
+    if (!problema) {
+      this.gaveta.set('media'); // mostra a lista de paradas que acabou de chegar
+      this.anuncio.set(`${this.proximos().length} paradas perto de você`);
+    }
   }
 
   protected async centralizarEmMim(): Promise<void> {
@@ -351,7 +369,7 @@ export class App {
 
   /** No celular, o teclado cobre a base da tela: sobe a gaveta ao digitar. */
   protected aoFocarCampo(): void {
-    if (matchMedia('(max-width: 760px)').matches) this.gaveta.set('alta');
+    if (celular()) this.gaveta.set('alta');
   }
 
   /** Toque na alça: baixa → média → alta → baixa. */
@@ -415,8 +433,37 @@ export class App {
     });
   }
 
+  /** Espaço que o painel e os controles ocupam por cima do mapa (px). */
+  private folgasMapa(): { topoEsq: [number, number]; baseDir: [number, number] } {
+    if (celular()) {
+      const topo = this.host.querySelector('.topo')?.getBoundingClientRect().bottom ?? 60;
+      return { topoEsq: [24, topo + 24], baseDir: [64, this.alturaBaixaPx + 24] };
+    }
+    const painel = this.host.querySelector('.painel')?.getBoundingClientRect().right ?? 420;
+    return { topoEsq: [painel + 32, 32], baseDir: [72, 32] };
+  }
+
+  /**
+   * Altura da gaveta baixa no celular: até o fim da resposta (placa ou botão
+   * de escolher o ponto), nem mais nem menos. Medida a cada segundo, que é
+   * quando a placa pode mudar de tamanho.
+   */
+  private medirGaveta(): void {
+    if (!celular()) return;
+    const painel = this.host.querySelector<HTMLElement>('.painel');
+    const ancora =
+      painel?.querySelector('[data-ancora]') ?? painel?.querySelector('.conteudo > :last-child');
+    if (!painel || !ancora) return;
+    const bruto = ancora.getBoundingClientRect().bottom - painel.getBoundingClientRect().top + 16;
+    const altura = Math.round(Math.max(150, Math.min(bruto, innerHeight * 0.6)));
+    if (Math.abs(altura - this.alturaBaixaPx) < 3) return;
+    this.alturaBaixaPx = altura;
+    this.host.style.setProperty('--h-baixa', `${altura}px`);
+  }
+
   private tique(): void {
     this.agora.set(Date.now());
+    this.medirGaveta();
     if (!this.dados()) return;
     this.sentidos.set(this.mapa().sentidos());
     const p = this.ponto();
@@ -460,6 +507,10 @@ export class App {
     this.aviso.set(texto);
     this.timerAviso = setTimeout(() => this.aviso.set(null), 4500);
   }
+}
+
+function celular(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(max-width: 760px)').matches;
 }
 
 /** Sem acento e minúsculo, para a busca por nome de parada. */

@@ -1,5 +1,16 @@
 <header class="topo">
-  <h1 class="marca">Ônibus Natal</h1>
+  <div class="identidade">
+    @if (linha(); as l) {
+      <!-- Escudo de rodovia com o número da linha -->
+      <span class="escudo-linha" [attr.aria-label]="'Linha ' + l.numero" role="img">
+        <svg viewBox="0 0 40 44" aria-hidden="true">
+          <path d="M3 3h34v21c0 9.5-8 14.6-17 17C11 38.6 3 33.5 3 24Z" />
+        </svg>
+        <b aria-hidden="true">{{ l.numero }}</b>
+      </span>
+    }
+    <h1 class="marca">Ônibus Natal</h1>
+  </div>
   @if (indicador(); as ind) {
     <p class="status" [class]="ind.tipo">
       <span class="luz" aria-hidden="true"></span>
@@ -134,7 +145,12 @@
     @if (linha(); as l) {
       <!-- 1. A resposta: o ponto do passageiro -->
       @if (ponto(); as p) {
-        <app-placa [nome]="p.nome" [sentidos]="sentidosPlaca()" [salvo]="ehMeuPonto()" />
+        <app-placa
+          data-ancora
+          [nome]="p.nome"
+          [sentidos]="sentidosPlaca()"
+          [salvo]="ehMeuPonto()"
+        />
         <p class="nota">
           Tempo estimado pela distância até o ponto, a ~18 km/h.
           @if (l.desatualizado) {
@@ -167,6 +183,7 @@
           <button
             type="button"
             class="botao principal"
+            data-ancora
             (click)="pertoDeMim()"
             [disabled]="local.buscando()"
           >
@@ -251,11 +268,14 @@
       <!-- 2. A linha e a frota -->
       <section class="linha" aria-labelledby="titulo-linha">
         <h2 id="titulo-linha" class="visualmente-oculto">Linha {{ l.numero }}</h2>
-        <ul class="destinos">
-          @for (it of itinerarios(); track it.codigo) {
-            <li [style.--cor]="it.cor"><i aria-hidden="true"></i>{{ it.destino }}</li>
-          }
-        </ul>
+        <!-- A placa já mostra as cores dos sentidos; a legenda só sem ela. -->
+        @if (!ponto()) {
+          <ul class="destinos">
+            @for (it of itinerarios(); track it.codigo) {
+              <li [style.--cor]="it.cor"><i aria-hidden="true"></i>{{ it.destino }}</li>
+            }
+          </ul>
+        }
         <p class="resumo">
           {{ resumo() }}
           @if (calculando() > 0) {

@@ -24,7 +24,7 @@
   --adv-texto: #1b1f22;
   --reg: #c4161c;
   --reg-fundo: #fdecec;
-  --foco: #1d5fd1;
+  --foco: #1b1f22;
   --selecao: #ffc20e;
   --sombra: 0 1px 2px rgb(16 20 22 / 16%), 0 6px 18px rgb(16 20 22 / 14%);
   --sombra-placa: 0 2px 4px rgb(16 20 22 / 22%), 0 8px 20px rgb(16 20 22 / 16%);
@@ -35,9 +35,9 @@
 
 [data-tema='noite'] {
   color-scheme: dark;
-  --chao: #15191b;
-  --chao-2: #1e2326;
-  --chao-3: #283035;
+  --chao: #111416;
+  --chao-2: #1b1f22;
+  --chao-3: #262c30;
   --linha: #333b40;
   --linha-forte: #6e7981;
   --texto: #f1f3f4;
@@ -47,7 +47,7 @@
   --placa-escura: #00512f;
   --reg: #ff6b6b;
   --reg-fundo: #3a1a1b;
-  --foco: #ffc20e;
+  --foco: #ffffff;
   --sombra: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 22px rgb(0 0 0 / 45%);
   --sombra-placa: 0 2px 4px rgb(0 0 0 / 45%), 0 8px 22px rgb(0 0 0 / 40%);
 }
@@ -191,7 +191,7 @@ input {
   }
 
   app-root:has(.painel[data-gaveta='baixa']) {
-    --altura-gaveta: 40dvh;
+    --altura-gaveta: var(--h-baixa, 40dvh);
   }
 
   /* Gaveta no alto: controles ficam por baixo dela e os avisos vão para a base. */

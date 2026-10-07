@@ -18,7 +18,7 @@ export interface DadosMapa {
  * azul de serviço, laranja de obras, verde, e reservas. Legíveis sobre o
  * mapa claro e o escuro.
  */
-const CORES_DIA = ['#1d5fd1', '#d9590b', '#0f7a43', '#9c2f86', '#0b7f8c', '#7a5418'];
+const CORES_DIA = ['#1859c2', '#d9590b', '#0f7a43', '#9c2f86', '#0b7f8c', '#7a5418'];
 /** As mesmas cores, mais claras, para continuarem visíveis no mapa escuro. */
 const CORES_NOITE = ['#6b9cf2', '#f0813a', '#3fb57a', '#c86bb6', '#3cb6c2', '#c79a4e'];
 export const COR_SEM_ROTA = '#6b7378';
@@ -126,7 +126,8 @@ export class Mapa {
       for (const [chave, m] of this.marcadoresPonto) {
         const ativo = chave === sel;
         m.getElement()?.classList.toggle('ativo', ativo);
-        m.setZIndexOffset(ativo ? 500 : 0);
+        // O ponto do passageiro fica por cima até dos ônibus.
+        m.setZIndexOffset(ativo ? 2000 : 0);
       }
     });
     effect(() => {
@@ -161,6 +162,29 @@ export class Mapa {
   /** Leva o mapa até um ponto (parada, posição do passageiro). */
   irPara(lat: number, lng: number): void {
     this.mapa?.flyTo([lat, lng], Math.max(this.mapa.getZoom(), 16));
+  }
+
+  /**
+   * Enquadra o ponto do passageiro e o próximo ônibus a chegar, descontando
+   * o que o painel cobre (folgas em px).
+   */
+  enquadrarPonto(
+    lat: number,
+    lng: number,
+    onibus: string | null,
+    folgas: { topoEsq: [number, number]; baseDir: [number, number] },
+  ): void {
+    if (!this.mapa) return;
+    this.enquadrou = true;
+    const limites = L.latLng(lat, lng).toBounds(400);
+    const m = onibus ? this.marcadores.get(onibus) : undefined;
+    if (m) limites.extend(m.marker.getLatLng());
+    this.mapa.flyToBounds(limites, {
+      paddingTopLeft: folgas.topoEsq,
+      paddingBottomRight: folgas.baseDir,
+      maxZoom: 17,
+      duration: 0.8,
+    });
   }
 
   /** Volta a mostrar o traçado inteiro da linha. */
@@ -280,7 +304,7 @@ export class Mapa {
         }),
         title: p.nome,
         keyboard: false,
-        zIndexOffset: p.chave === sel ? 500 : 0,
+        zIndexOffset: p.chave === sel ? 2000 : 0,
       })
         .on('click', () => this.pontoClicado.emit(p.chave))
         .addTo(this.camadaParadas);

@@ -34,11 +34,14 @@
         </div>
         <div class="tempo">
           @if (l.proximo; as p) {
-            @if (p.chegando) {
-              <b class="chegando">chegando</b>
-            } @else {
-              <b>{{ p.minutos }}</b
-              ><span>min</span>
+            <!-- Recriado a cada minuto novo: é o único movimento da placa. -->
+            @for (m of [p.chegando ? 'chegando' : p.minutos]; track m) {
+              @if (p.chegando) {
+                <b class="chegando">chegando</b>
+              } @else {
+                <b class="minutos">{{ m }}</b
+                ><span>min</span>
+              }
             }
           } @else {
             <b class="vazio">—</b>

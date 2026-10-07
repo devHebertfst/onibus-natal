@@ -33,6 +33,11 @@ export class Placa {
       const [proximo, ...depois] = s.previsoes;
       return {
         ...s,
+        // Quebra de linha só entre os nomes ("Ribeira / Cidade Nova"), nunca no meio de um.
+        destino: s.destino
+          .split(' / ')
+          .map((parte) => parte.replace(/ /g, '\u00a0'))
+          .join('\u00a0/ '),
         proximo: proximo
           ? {
               chegando: proximo.minutos < 1,
