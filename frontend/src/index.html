@@ -41,31 +41,11 @@
       [data-tema='noite'] body {
         background: #111416;
       }
-      #splash .placa {
-        position: relative;
-        padding: 18px 26px;
-        border-radius: 10px;
-        background: #00653a;
-        color: #fff;
-        font:
-          800 26px/1 'Overpass Variable',
-          system-ui,
-          sans-serif;
-        letter-spacing: -0.01em;
-        box-shadow: 0 8px 24px rgb(0 0 0 / 22%);
-      }
-      #splash .placa::before {
-        content: '';
-        position: absolute;
-        inset: 5px;
-        border: 2px solid #fff;
-        border-radius: 7px;
-      }
     </style>
   </head>
   <body>
     <div id="splash" aria-hidden="true">
-      <div class="placa">Ônibus Natal</div>
+      <img src="icon.svg" width="96" height="96" alt="" />
     </div>
     <app-root></app-root>
   </body>

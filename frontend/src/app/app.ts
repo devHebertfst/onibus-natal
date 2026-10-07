@@ -340,8 +340,15 @@ export class App {
     this.avisoLocal.set(null);
     const problema = await this.local.pedir();
     this.avisoLocal.set(problema);
-    if (!problema) {
+    const pos = this.local.posicao();
+    if (!problema && pos) {
       this.gaveta.set('media'); // mostra a lista de paradas que acabou de chegar
+      // No mapa: você e as paradas mais próximas, acima da gaveta.
+      const pontos: [number, number][] = [
+        [pos.lat, pos.lng],
+        ...this.proximos().map((p): [number, number] => [p.ponto.lat, p.ponto.lng]),
+      ];
+      requestAnimationFrame(() => this.mapa().enquadrarVarios(pontos, this.folgasMapa('media')));
       this.anuncio.set(`${this.proximos().length} paradas perto de você`);
     }
   }
@@ -434,10 +441,14 @@ export class App {
   }
 
   /** Espaço que o painel e os controles ocupam por cima do mapa (px). */
-  private folgasMapa(): { topoEsq: [number, number]; baseDir: [number, number] } {
+  private folgasMapa(gaveta: Gaveta = 'baixa'): {
+    topoEsq: [number, number];
+    baseDir: [number, number];
+  } {
     if (celular()) {
       const topo = this.host.querySelector('.topo')?.getBoundingClientRect().bottom ?? 60;
-      return { topoEsq: [24, topo + 24], baseDir: [64, this.alturaBaixaPx + 24] };
+      const base = gaveta === 'baixa' ? this.alturaBaixaPx : innerHeight * 0.64;
+      return { topoEsq: [24, topo + 24], baseDir: [64, base + 24] };
     }
     const painel = this.host.querySelector('.painel')?.getBoundingClientRect().right ?? 420;
     return { topoEsq: [painel + 32, 32], baseDir: [72, 32] };

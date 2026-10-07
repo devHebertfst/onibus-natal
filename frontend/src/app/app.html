@@ -145,13 +145,8 @@
     @if (linha(); as l) {
       <!-- 1. A resposta: o ponto do passageiro -->
       @if (ponto(); as p) {
-        <app-placa
-          data-ancora
-          [nome]="p.nome"
-          [sentidos]="sentidosPlaca()"
-          [salvo]="ehMeuPonto()"
-        />
-        <p class="nota">
+        <app-placa [nome]="p.nome" [sentidos]="sentidosPlaca()" [salvo]="ehMeuPonto()" />
+        <p class="nota" data-ancora>
           Tempo estimado pela distância até o ponto, a ~18 km/h.
           @if (l.desatualizado) {
             <span class="adv"

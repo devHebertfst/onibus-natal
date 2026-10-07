@@ -187,6 +187,21 @@ export class Mapa {
     });
   }
 
+  /** Enquadra um conjunto de pontos (passageiro e paradas perto dele). */
+  enquadrarVarios(
+    pontos: [number, number][],
+    folgas: { topoEsq: [number, number]; baseDir: [number, number] },
+  ): void {
+    if (!this.mapa || pontos.length === 0) return;
+    this.enquadrou = true;
+    this.mapa.flyToBounds(L.latLngBounds(pontos).pad(0.05), {
+      paddingTopLeft: folgas.topoEsq,
+      paddingBottomRight: folgas.baseDir,
+      maxZoom: 17,
+      duration: 0.8,
+    });
+  }
+
   /** Volta a mostrar o traçado inteiro da linha. */
   enquadrar(): void {
     if (this.limitesTracado?.isValid())
