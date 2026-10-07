@@ -28,6 +28,15 @@ interface IndicadorStatus {
   tipo: 'vivo' | 'alerta' | 'neutro';
 }
 
+/** Ônibus que a placa segue num sentido, e quanto faltava na última vez. */
+interface Seguido {
+  onibus: string;
+  minutos: number;
+}
+
+/** Por quanto tempo a placa explica por que o número mudou. */
+const AVISO_PLACA_MS = 45_000;
+
 @Component({
   selector: 'app-root',
   imports: [Mapa, Placa],
@@ -68,15 +77,26 @@ export class App {
   protected readonly avisoLocal = signal<string | null>(null);
   /** Texto para o leitor de tela: só mudanças de verdade, nunca a cada segundo. */
   protected readonly anuncio = signal('');
+  /** "Chegando" interrompe o leitor de tela; vai numa região própria, que nada sobrescreve. */
+  protected readonly anuncioUrgente = signal('');
   protected readonly filtroParadas = signal('');
   protected readonly listaAberta = signal(false);
+  /** Frota aberta ou fechada pelo passageiro; sem escolha, fica fechada quando há placa. */
+  protected readonly frotaEscolha = signal<boolean | null>(null);
   /** Relógio de 1 s para "há X s", sentidos e previsões. */
   protected readonly agora = signal(Date.now());
   private readonly sentidos = signal(new Map<string, string | null>());
   protected readonly sentidosPlaca = signal<SentidoNaPlaca[]>([]);
   private chegandoAnunciado = new Set<string>();
+  /** Itinerário → ônibus que a placa está seguindo. */
+  private seguidos = new Map<string, Seguido>();
+  /** Itinerário → explicação de por que o ônibus seguido mudou. */
+  private avisosPlaca = new Map<string, { texto: string; ate: number }>();
+  /** Fim do último toque na alça: o `click` que vem logo depois não pode alternar de novo. */
+  private fimToqueAlca = 0;
 
   protected readonly tema = this.temaService.tema;
+  protected readonly corSemRota = COR_SEM_ROTA;
   protected readonly linha = computed(() => this.dados()?.linha ?? null);
   protected readonly itinerarios = computed(() =>
     (this.linha()?.itinerarios ?? []).map((it, i) => ({
@@ -98,6 +118,36 @@ export class App {
   protected readonly favorita = computed(() => {
     const n = this.numero();
     return n !== null && this.fav.favoritas().includes(n);
+  });
+  protected readonly frotaAberta = computed(() => this.frotaEscolha() ?? !this.ponto());
+  /** Recentes que não estão nas favoritas (as favoritas já aparecem logo acima). */
+  protected readonly recentes = computed(() => {
+    const favs = this.fav.favoritas();
+    return this.fav.recentes().filter((n) => !favs.includes(n));
+  });
+  /** "Ver" só quando o campo pede outra linha; com a linha já aberta, sobra o ✕. */
+  protected readonly mostrarVer = computed(() => {
+    const digitado = this.valorCampo().trim().toUpperCase();
+    return digitado !== '' && digitado !== this.numero();
+  });
+
+  /** Tempo até o ponto escolhido de cada ônibus (o menor entre os sentidos). */
+  private readonly etas = computed(() => {
+    const etas = new Map<string, number>();
+    for (const s of this.sentidosPlaca())
+      for (const p of s.previsoes)
+        etas.set(p.onibus, Math.min(p.minutos, etas.get(p.onibus) ?? Infinity));
+    return etas;
+  });
+
+  /** Rótulos do mapa: só os ônibus que a placa segue, com o tempo até o ponto. */
+  protected readonly rotulosMapa = computed(() => {
+    const rotulos: Record<string, string> = {};
+    for (const s of this.sentidosPlaca()) {
+      const p = s.previsoes[0];
+      if (p) rotulos[p.onibus] = p.minutos < 1 ? 'chegando' : `${Math.round(p.minutos)} min`;
+    }
+    return rotulos;
   });
 
   protected readonly proximos = computed(() => {
@@ -121,19 +171,28 @@ export class App {
     const its = this.itinerarios();
     const sentidos = this.sentidos();
     const agora = this.agora();
-    return (this.linha()?.onibus ?? []).map((o) => {
-      // Sentido inferido no mapa; sem ele, o itinerário da API se for único.
+    const etas = this.etas();
+    const lista = (this.linha()?.onibus ?? []).map((o) => {
+      // O mapa decide o sentido (inferido ou, sem ele, o único da API): mesma cor nos dois.
       const codigo = sentidos.get(o.id) ?? (o.itinerarios.length === 1 ? o.itinerarios[0] : null);
       const it = its.find((i) => i.codigo === codigo);
       const paradoMin =
         o.velocidadeKmh === 0 ? Math.floor((agora - Date.parse(o.posicaoDesde)) / 60_000) : null;
+      const eta = etas.get(o.id);
       return {
         ...o,
         cor: it?.cor ?? COR_SEM_ROTA,
         destino: it?.destino ?? null,
         paradoMin,
+        chegaEm:
+          eta === undefined ? null : eta < 1 ? 'chegando' : `chega em ${Math.round(eta)} min`,
+        eta: eta ?? Infinity,
       };
     });
+    // Com um ponto escolhido, primeiro os que vêm para ele, do mais perto ao mais longe.
+    return lista.sort(
+      (a, b) => a.eta - b.eta || a.id.localeCompare(b.id, 'pt-BR', { numeric: true }),
+    );
   });
 
   protected readonly emMovimento = computed(
@@ -156,26 +215,30 @@ export class App {
     return d ? Math.max(0, Math.round((this.agora() - d.recebidoEm) / 1000)) : null;
   });
 
-  protected readonly indicador = computed((): IndicadorStatus | null => {
-    if (!this.numero()) return null;
-    if (this.offline()) return { rotulo: 'Sem internet', tipo: 'alerta' };
-    // O servidor manda dados a cada ~15 s; passado de 1 min, avisa.
-    const idade = this.idadeS();
-    if (this.status() === 'ao-vivo' && idade !== null && idade > 60)
-      return { rotulo: 'Sem dados novos', tipo: 'alerta' };
-    switch (this.status()) {
-      case 'conectando':
-        return { rotulo: 'Conectando', tipo: 'neutro' };
-      case 'reconectando':
-        return { rotulo: 'Reconectando', tipo: 'alerta' };
-      case 'ao-vivo':
-        return this.linha()?.desatualizado
-          ? { rotulo: 'Dados atrasados', tipo: 'alerta' }
-          : { rotulo: 'Ao vivo', tipo: 'vivo' };
-      default:
-        return null;
-    }
-  });
+  // Igual por rótulo e tipo: a idade muda a cada segundo, o estado não.
+  protected readonly indicador = computed(
+    (): IndicadorStatus | null => {
+      if (!this.numero()) return null;
+      if (this.offline()) return { rotulo: 'Sem internet', tipo: 'alerta' };
+      // O servidor manda dados a cada ~15 s; passado de 1 min, avisa.
+      const idade = this.idadeS();
+      if (this.status() === 'ao-vivo' && idade !== null && idade > 60)
+        return { rotulo: 'Sem dados novos', tipo: 'alerta' };
+      switch (this.status()) {
+        case 'conectando':
+          return { rotulo: 'Conectando', tipo: 'neutro' };
+        case 'reconectando':
+          return { rotulo: 'Reconectando', tipo: 'alerta' };
+        case 'ao-vivo':
+          return this.linha()?.desatualizado
+            ? { rotulo: 'Dados atrasados', tipo: 'alerta' }
+            : { rotulo: 'Ao vivo', tipo: 'vivo' };
+        default:
+          return null;
+      }
+    },
+    { equal: (a, b) => a?.rotulo === b?.rotulo && a?.tipo === b?.tipo },
+  );
 
   constructor() {
     const relogio = setInterval(() => this.tique(), 1000);
@@ -241,6 +304,8 @@ export class App {
     this.sentidosPlaca.set([]);
     this.filtroParadas.set('');
     this.listaAberta.set(false);
+    this.frotaEscolha.set(null);
+    this.esquecerSeguidos();
     this.carregando.set(true);
     this.atualizarUrl();
 
@@ -255,6 +320,11 @@ export class App {
           this.status.set('ao-vivo');
           if (this.dados() === null) this.fav.registrarRecente(numero);
           this.dados.set({ linha: a.linha, recebidoEm: a.recebidoEm });
+          this.fav.registrarDestinos(
+            numero,
+            // "Planalto / Praia do Meio" + "Planalto / Mae Luiza" → "Planalto · Praia do Meio · Mae Luiza"
+            [...new Set(this.itinerarios().flatMap((it) => it.destino.split(' / ')))].join(' · '),
+          );
           break;
         case 'erro':
           this.carregando.set(false);
@@ -299,7 +369,9 @@ export class App {
     if (!p) return;
     this.pontoSel.set(chave);
     this.chegandoAnunciado.clear();
+    this.esquecerSeguidos();
     this.listaAberta.set(false);
+    this.frotaEscolha.set(null);
     this.atualizarUrl();
     this.gaveta.set('baixa');
     this.tique();
@@ -320,7 +392,16 @@ export class App {
   protected trocarPonto(): void {
     this.pontoSel.set(null);
     this.sentidosPlaca.set([]);
+    this.esquecerSeguidos();
+    this.frotaEscolha.set(null);
     this.atualizarUrl();
+    // A pergunta substitui a placa: o foco vai para ela.
+    requestAnimationFrame(() => this.host.querySelector<HTMLElement>('#titulo-seu-ponto')?.focus());
+  }
+
+  private esquecerSeguidos(): void {
+    this.seguidos.clear();
+    this.avisosPlaca.clear();
   }
 
   protected alternarMeuPonto(): void {
@@ -379,6 +460,12 @@ export class App {
     if (celular()) this.gaveta.set('alta');
   }
 
+  /** Clique na alça (teclado, leitor de tela); o toque já foi tratado pelo arrasto. */
+  protected cliqueAlca(): void {
+    if (performance.now() - this.fimToqueAlca < 600) return;
+    this.ciclarGaveta();
+  }
+
   /** Toque na alça: baixa → média → alta → baixa. */
   protected ciclarGaveta(): void {
     this.gaveta.update((g) => (g === 'baixa' ? 'media' : g === 'media' ? 'alta' : 'baixa'));
@@ -408,7 +495,9 @@ export class App {
     const a = this.arrasto;
     if (!a || e.pointerId !== a.id) return;
     this.arrasto = null;
-    if (!cancelado && !a.moveu) this.ciclarGaveta();
+    if (cancelado) return;
+    this.fimToqueAlca = performance.now();
+    if (!a.moveu) this.ciclarGaveta();
   }
 
   protected tecla(e: KeyboardEvent): void {
@@ -481,26 +570,66 @@ export class App {
     if (!p) return;
 
     const its = this.itinerarios();
+    const agora = Date.now();
     const sentidos = p.sentidos.map((s): SentidoNaPlaca => {
       const it = its.find((i) => i.codigo === s.itinerario);
+      const previsoes = this.mapa().previsoes(s);
       return {
         itinerario: s.itinerario,
         destino: it?.destino ?? s.itinerario,
         cor: it?.cor ?? COR_SEM_ROTA,
         rumo: this.mapa().rumo(s),
-        previsoes: this.mapa().previsoes(s),
+        previsoes,
+        aviso: this.acompanharSeguido(s.itinerario, previsoes, agora),
       };
     });
     this.sentidosPlaca.set(sentidos);
 
-    // "Chegando" é a única mudança da placa que vale anunciar.
+    // "Chegando" interrompe o leitor de tela, uma vez por ônibus.
     for (const s of sentidos) {
       const prox = s.previsoes[0];
       if (prox && prox.minutos < 1 && !this.chegandoAnunciado.has(prox.onibus)) {
         this.chegandoAnunciado.add(prox.onibus);
-        this.anuncio.set(`Ônibus ${prox.onibus} chegando no seu ponto, sentido ${s.destino}`);
+        this.anuncioUrgente.set(
+          `Ônibus ${prox.onibus} chegando no seu ponto, sentido ${s.destino}`,
+        );
       }
     }
+  }
+
+  /**
+   * A placa segue um ônibus por sentido. Se ele some da conta (passou do
+   * ponto, mudou de sentido, perdeu o GPS) ou outro aparece na frente, o
+   * número muda, e a placa diz por quê em vez de trocar em silêncio.
+   */
+  private acompanharSeguido(
+    itinerario: string,
+    previsoes: { onibus: string; minutos: number }[],
+    agora: number,
+  ): string | null {
+    const antes = this.seguidos.get(itinerario);
+    const primeiro = previsoes[0];
+    // Outro ônibus passar à frente só encurta a espera; o que precisa de explicação
+    // é o seguido sumir da conta.
+    if (
+      antes &&
+      primeiro?.onibus !== antes.onibus &&
+      !previsoes.some((x) => x.onibus === antes.onibus)
+    ) {
+      const texto =
+        antes.minutos < 2
+          ? `O ônibus nº ${antes.onibus} já passou por aqui.`
+          : `O ônibus nº ${antes.onibus} saiu da conta (mudou de sentido ou perdeu o GPS).`;
+      this.avisosPlaca.set(itinerario, { texto, ate: agora + AVISO_PLACA_MS });
+      this.anuncio.set(texto);
+    }
+    if (primeiro)
+      this.seguidos.set(itinerario, { onibus: primeiro.onibus, minutos: primeiro.minutos });
+    else this.seguidos.delete(itinerario);
+
+    const aviso = this.avisosPlaca.get(itinerario);
+    if (aviso && aviso.ate < agora) this.avisosPlaca.delete(itinerario);
+    return aviso && aviso.ate >= agora ? aviso.texto : null;
   }
 
   private atualizarUrl(): void {

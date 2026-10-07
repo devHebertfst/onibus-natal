@@ -30,6 +30,15 @@ export function corDoSentido(i: number, tema: Tema): string {
 }
 
 const NATAL: L.LatLngTuple = [-5.7945, -35.211];
+/** Abaixo deste zoom as paradas viram pontinhos sobre o traçado. */
+const ZOOM_PARADAS = 15;
+/**
+ * Espessura do traçado de cada sentido. Ida e volta costumam dividir o mesmo
+ * tronco: o primeiro sentido é mais largo e o segundo corre por dentro dele,
+ * então as duas cores aparecem no trecho comum.
+ */
+const LARGURAS = [8, 3.5];
+const LARGURA_RESERVA = 2.5;
 const ATRIBUICAO = 'Mapa &copy; Esri, HERE, Garmin, &copy; OpenStreetMap';
 
 /** Mapas-base da Esri (sem chave de API): fundo sem rótulos + camada de nomes por cima. */
@@ -46,6 +55,7 @@ const SETA_SVG =
 
 interface Marcador {
   marker: L.Marker;
+  /** Número e velocidade, mostrados quando o ônibus está selecionado. */
   texto: string;
   /** Elemento DOM atual (o Leaflet o recria se a camada for desligada e religada). */
   el?: HTMLElement;
@@ -72,6 +82,8 @@ export class Mapa {
   readonly pontos = input<PontoFisico[]>([]);
   readonly pontoSelecionado = input<string | null>(null);
   readonly minhaPosicao = input<Posicao | null>(null);
+  /** Ônibus seguidos pela placa → texto do rótulo ("6 min", "chegando"). */
+  readonly rotulos = input<Record<string, string>>({});
   readonly onibusClicado = output<string>();
   readonly pontoClicado = output<string>();
 
@@ -101,6 +113,8 @@ export class Mapa {
   private limitesTracado?: L.LatLngBounds;
   private enquadrou = false;
   private cores = new Map<string, string>();
+  /** Itinerários que a API atribui a cada ônibus (fallback do sentido). */
+  private itinerariosApi = new Map<string, string[]>();
   private raf = 0;
 
   constructor() {
@@ -117,9 +131,9 @@ export class Mapa {
       if (this.mapa) this.desenharPontos(pontos);
     });
     effect(() => {
-      const id = this.selecionado();
-      for (const [chave, m] of this.marcadores)
-        m.marker.getElement()?.classList.toggle('selecionado', chave === id);
+      this.selecionado();
+      this.rotulos();
+      for (const [id, m] of this.marcadores) this.atualizarRotulo(id, m);
     });
     effect(() => {
       const sel = this.pontoSelecionado();
@@ -144,6 +158,10 @@ export class Mapa {
       .zoom({ position: 'bottomright', zoomInTitle: 'Aproximar', zoomOutTitle: 'Afastar' })
       .addTo(mapa);
     mapa.attributionControl.setPrefix(false);
+    const escala = () =>
+      mapa.getContainer().classList.toggle('longe', mapa.getZoom() < ZOOM_PARADAS);
+    mapa.on('zoomend', escala);
+    escala();
     this.camadaTracado.addTo(mapa);
     this.camadaParadas.addTo(mapa);
     this.camadaOnibus.addTo(mapa);
@@ -208,11 +226,20 @@ export class Mapa {
       this.mapa?.flyToBounds(this.limitesTracado, { padding: [48, 48] });
   }
 
-  /** Itinerário (sentido) inferido de cada ônibus pelo dead reckoning. */
+  /**
+   * Sentido de cada ônibus: o inferido pelo dead reckoning ou, sem ele, o
+   * itinerário da API quando ela aponta um só. A mesma regra pinta o
+   * marcador, a lista e a placa.
+   */
   sentidos(): Map<string, string | null> {
-    return new Map(
-      [...this.frota.onibus].map(([id, o]) => [id, o.posicaoNaRota()?.codigo ?? null]),
-    );
+    return new Map([...this.frota.onibus.keys()].map((id) => [id, this.sentidoDe(id)]));
+  }
+
+  private sentidoDe(id: string, inferido?: string | null): string | null {
+    const codigo = inferido ?? this.frota.onibus.get(id)?.posicaoNaRota()?.codigo ?? null;
+    if (codigo) return codigo;
+    const api = this.itinerariosApi.get(id);
+    return api?.length === 1 ? api[0] : null;
   }
 
   /** Ônibus a caminho de uma parada, com estimativa de chegada. */
@@ -253,13 +280,13 @@ export class Mapa {
       this.marcadores.get(id)?.marker.remove();
       this.marcadores.delete(id);
     }
+    this.itinerariosApi = new Map(linha.onibus.map((o) => [o.id, o.itinerarios]));
     for (const o of linha.onibus) {
       if (!this.marcadores.has(o.id))
         this.marcadores.set(o.id, this.criarMarcador(o.id, o.lat, o.lng));
       const m = this.marcadores.get(o.id)!;
-      m.texto = o.velocidadeKmh === null ? o.id : `${o.id} – ${o.velocidadeKmh} km/h`;
-      const rotulo = m.el?.querySelector('.rotulo');
-      if (rotulo) rotulo.textContent = m.texto;
+      m.texto = o.velocidadeKmh === null ? o.id : `${o.id} · ${o.velocidadeKmh} km/h`;
+      this.atualizarRotulo(o.id, m);
     }
   }
 
@@ -275,24 +302,26 @@ export class Mapa {
     const contorno = this.tema() === 'noite' ? '#111416' : '#ffffff';
 
     const limites = L.latLngBounds([]);
-    for (const it of linha.itinerarios) {
-      if (it.tracado.length < 2) continue;
-      const cor = this.cores.get(it.codigo)!;
-      // Contorno + linha, como nos mapas de rota impressos (sem brilho).
+    const desenhaveis = linha.itinerarios.filter((it) => it.tracado.length >= 2);
+    // Contorno de todos primeiro; depois as cores, da mais larga para a mais fina.
+    desenhaveis.forEach((it, i) => {
       L.polyline(it.tracado, {
         color: contorno,
-        weight: 8,
+        weight: (LARGURAS[i] ?? LARGURA_RESERVA) + 4,
         opacity: 0.9,
         interactive: false,
       }).addTo(this.camadaTracado);
+    });
+    desenhaveis.forEach((it, i) => {
+      // Linha cheia na cor do sentido, como nos mapas de rota impressos (sem brilho).
       const linhaMapa = L.polyline(it.tracado, {
-        color: cor,
-        weight: 4,
+        color: this.cores.get(it.codigo)!,
+        weight: LARGURAS[i] ?? LARGURA_RESERVA,
         opacity: 1,
         interactive: false,
       }).addTo(this.camadaTracado);
       limites.extend(linhaMapa.getBounds());
-    }
+    });
     this.limitesTracado = limites;
     // Enquadra só ao abrir a linha (não a cada troca de tema).
     if (!this.enquadrou && limites.isValid()) {
@@ -379,14 +408,13 @@ export class Mapa {
       if (el !== m.el) {
         m.el = el;
         m.seta = el?.querySelector<SVGElement>('.seta');
-        const rotulo = el?.querySelector('.rotulo');
-        if (rotulo) rotulo.textContent = m.texto;
-        el?.classList.toggle('selecionado', id === this.selecionado());
+        this.atualizarRotulo(id, m);
         m.ultimoRumo = null;
         m.ultimaCor = '';
       }
 
-      const cor = q.itinerario ? (this.cores.get(q.itinerario) ?? COR_SEM_ROTA) : COR_SEM_ROTA;
+      const sentido = this.sentidoDe(id, q.itinerario);
+      const cor = sentido ? (this.cores.get(sentido) ?? COR_SEM_ROTA) : COR_SEM_ROTA;
       if (m.el && cor !== m.ultimaCor) {
         m.el.style.setProperty('--cor', cor);
         m.ultimaCor = cor;
@@ -404,10 +432,28 @@ export class Mapa {
     this.raf = requestAnimationFrame(this.loop);
   };
 
+  /**
+   * Rótulo só onde ajuda: no ônibus que a placa está seguindo (com o tempo
+   * até o ponto) e no selecionado (número e velocidade). Os outros ficam sem
+   * texto, para os rótulos não se atropelarem.
+   */
+  private atualizarRotulo(id: string, m: Marcador): void {
+    const el = m.marker.getElement();
+    if (!el) return;
+    const selecionado = id === this.selecionado();
+    const seguido = this.rotulos()[id];
+    el.classList.toggle('selecionado', selecionado);
+    el.classList.toggle('seguido', !!seguido);
+    const rotulo = el.querySelector('.rotulo');
+    if (rotulo) rotulo.textContent = selecionado ? m.texto : (seguido ?? '');
+    m.marker.setZIndexOffset(selecionado ? 2000 : seguido ? 1500 : 1000);
+  }
+
   private limpar(): void {
     this.camadaTracado.clearLayers();
     this.camadaOnibus.clearLayers();
     this.marcadores.clear();
+    this.itinerariosApi.clear();
     this.frota = new Frota();
     this.linhaAtual = null;
     this.assinaturaTracado = '';

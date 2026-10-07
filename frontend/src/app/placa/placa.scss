@@ -21,12 +21,22 @@
   }
 }
 
+.cabeca {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 4px;
+}
+
 .nome {
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  margin: 0 0 4px;
+  margin: 0;
   padding: 0 2px;
+  min-width: 0;
   font-size: 15px;
   font-weight: 700;
   line-height: 1.25;
@@ -63,6 +73,21 @@ li {
   & + li {
     border-top: 2px solid rgb(255 255 255 / 55%);
   }
+}
+
+.rumo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Letra do rumo sob a seta, como na rosa dos ventos: diferencia os dois lados da rua. */
+.rumo-curto {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
 }
 
 .seta {
@@ -105,6 +130,19 @@ li {
     text-wrap: balance;
     /* Só se um nome sozinho não couber na largura. */
     overflow-wrap: break-word;
+  }
+
+  /* Por que o número mudou: amarelo com preto, como toda advertência. */
+  .aviso {
+    align-self: flex-start;
+    margin-top: 6px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    background: var(--adv);
+    color: var(--adv-texto);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.3;
   }
 
   .detalhe {

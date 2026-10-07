@@ -158,6 +158,18 @@ i {
     stroke-width: 1.5;
   }
 
+  /* Antes de abrir uma linha: o escudo leva um ônibus no lugar do número. */
+  &.vazio .bus {
+    position: relative;
+    inset: auto;
+    width: 20px;
+    height: 20px;
+    margin-top: -6px;
+    fill: none;
+    stroke: #1b1f22;
+    stroke-width: 2;
+  }
+
   b {
     position: relative;
     margin-top: -5px;
@@ -382,6 +394,12 @@ i {
   font-size: 14px;
   line-height: 1.4;
   color: var(--texto-3);
+  font-variant-numeric: tabular-nums;
+
+  > b {
+    font-weight: 700;
+    color: var(--texto-2);
+  }
 
   .adv {
     display: block;
@@ -445,10 +463,33 @@ i {
   }
 }
 
-.acoes-ponto {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
+.botao.largo {
+  width: 100%;
+}
+
+/* "Trocar" mora no cabeçalho da placa: filete branco sobre o verde. */
+.trocar {
+  flex: none;
+  min-height: 44px;
+  margin: -6px -4px 0 0;
+  padding: 0 12px;
+  border: 2px solid var(--placa-texto);
+  border-radius: 4px;
+  background: var(--placa);
+  color: var(--placa-texto);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+
+  @media (hover: hover) {
+    &:hover {
+      background: var(--placa-escura);
+    }
+  }
+
+  &:focus-visible {
+    outline-color: var(--placa-texto);
+  }
 }
 
 .escolher {
@@ -460,6 +501,11 @@ i {
     font-size: 20px;
     font-weight: 800;
     line-height: 1.2;
+
+    /* Recebe o foco ao trocar de ponto; o anel só aparece com teclado. */
+    &:focus:not(:focus-visible) {
+      outline: none;
+    }
   }
 }
 
@@ -615,6 +661,126 @@ i {
   margin: 0 0 8px;
   font-size: 16px;
   font-weight: 800;
+
+  /* A frota abre e fecha pelo próprio título. */
+  .expandir {
+    font-size: 16px;
+    font-weight: 800;
+  }
+}
+
+/* Legenda do mapa: fechada por padrão, legível no toque (sem tooltips). */
+.legenda {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--texto-2);
+
+  summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 44px;
+    list-style: none;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--texto);
+    cursor: pointer;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    svg {
+      transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+  }
+
+  &[open] summary svg {
+    transform: rotate(180deg);
+  }
+
+  ul {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 2px 0 6px;
+  }
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  i {
+    width: 14px;
+    height: 14px;
+  }
+
+  .simbolo {
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    min-width: 14px;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .seta-onibus {
+    width: 18px;
+    height: 18px;
+    box-sizing: border-box;
+    border: 2px solid #fff;
+    border-radius: 5px;
+    background: var(--texto-2);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
+
+    &::before {
+      content: '';
+      width: 0;
+      height: 0;
+      border: 4px solid transparent;
+      border-bottom: 7px solid #fff;
+      border-top: 0;
+    }
+  }
+
+  .rotulo-verde {
+    padding: 3px 5px;
+    border-radius: 4px;
+    background: var(--placa);
+    color: var(--placa-texto);
+  }
+
+  .rosa {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    background: var(--placa);
+    color: var(--placa-texto);
+    font-size: 13px;
+  }
+
+  .texto {
+    font-weight: 600;
+    color: var(--texto-3);
+  }
+
+  .atalhos {
+    display: none;
+    margin: 4px 0 0;
+    color: var(--texto-3);
+  }
+}
+
+/* Atalhos só fazem sentido com teclado e mouse. */
+@media (hover: hover) and (pointer: fine) {
+  .legenda .atalhos {
+    display: block;
+  }
 }
 
 .frota {
@@ -648,7 +814,8 @@ i {
       background: var(--texto);
       color: var(--chao);
 
-      .num {
+      .num,
+      .num b {
         color: var(--chao-3);
       }
 
@@ -681,6 +848,11 @@ i {
     font-size: 13px;
     color: var(--texto-3);
     font-variant-numeric: tabular-nums;
+
+    b {
+      font-weight: 700;
+      color: var(--texto);
+    }
   }
 
   .vel {
@@ -702,9 +874,15 @@ i {
   gap: 8px;
 
   button {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
     min-width: 56px;
+    max-width: 100%;
     min-height: 48px;
-    padding: 0 14px;
+    padding: 4px 14px;
+    box-sizing: border-box;
     border: 2px solid var(--texto);
     border-radius: var(--raio);
     background: var(--chao);
@@ -724,27 +902,25 @@ i {
       color: var(--texto);
       font-weight: 700;
     }
+
+    /* Aonde a linha vai, para não depender de lembrar o número. */
+    small {
+      max-width: 22ch;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.3;
+      color: var(--texto-2);
+    }
   }
 }
 
 footer {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
   font-size: 13px;
   line-height: 1.4;
   color: var(--texto-3);
-
-  .atalhos {
-    display: none;
-  }
-}
-
-/* Atalhos só fazem sentido com teclado e mouse. */
-@media (hover: hover) and (pointer: fine) {
-  footer .atalhos {
-    display: block;
-  }
 }
 
 .toast {
@@ -813,7 +989,7 @@ footer {
     width: auto;
     height: var(--h-gaveta-alta);
     gap: 12px;
-    padding: 0 14px;
+    padding: 0 16px;
     border-radius: 18px 18px 0 0;
     box-shadow: 0 -2px 12px rgb(16 20 22 / 18%);
     transform: translateY(var(--desloca));
@@ -836,8 +1012,8 @@ footer {
     display: block;
     align-self: stretch;
     flex: none;
-    height: 40px;
-    margin: 0 -14px -14px;
+    height: 44px;
+    margin: 0 -16px -12px;
     padding: 0;
     border: 0;
     background: none;

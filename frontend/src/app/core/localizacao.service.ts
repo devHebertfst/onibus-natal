@@ -34,10 +34,10 @@ export class LocalizacaoService {
           this.buscando.set(false);
           resolve(
             e.code === e.PERMISSION_DENIED
-              ? 'A localização está bloqueada. Libere nas configurações do navegador ou escolha o ponto na lista.'
+              ? 'Localização bloqueada. Libere no navegador ou escolha o ponto na lista.'
               : e.code === e.TIMEOUT
-                ? 'A localização demorou para responder. Tente de novo ou escolha o ponto na lista.'
-                : 'Não deu para saber onde você está agora. Escolha o ponto na lista.',
+                ? 'A localização demorou. Tente de novo ou escolha na lista.'
+                : 'Não deu para achar você agora. Escolha o ponto na lista.',
           );
         },
         { enableHighAccuracy: true, timeout: 12_000, maximumAge: 30_000 },
