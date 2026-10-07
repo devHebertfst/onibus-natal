@@ -1,5 +1,164 @@
+/* Tema escuro único (como um painel de telemetria), com acento vermelho. */
+:root {
+  color-scheme: dark;
+  --bg: #0a0808;
+  --superficie: #141010;
+  --superficie-2: #1d1717;
+  --borda: #2a1c1a;
+  --borda-forte: #3d2a27;
+  --texto: #f6f6f6;
+  --texto-2: #c2c1c1;
+  --texto-3: #8a8585;
+  --acento: #e30613;
+  --acento-claro: #f4423e;
+  --ok: #3ddc84;
+  --alerta: #ffb020;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --raio: 14px;
+  --sombra: 0 10px 30px rgb(0 0 0 / 55%), 0 0 0 1px var(--borda);
+}
+
 html,
 body {
   margin: 0;
   height: 100%;
+  background: var(--bg);
+  color: var(--texto);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--acento-claro);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Splash (definido em index.html) */
+#splash {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background:
+    radial-gradient(circle at 50% 42%, #e3061324, #0000 42%),
+    radial-gradient(#80808033 1px, #0000 1px) 0 0 / 18px 18px,
+    var(--bg);
+  transition:
+    opacity 0.35s,
+    visibility 0.35s;
+
+  &.oculto {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+/* ---- Leaflet no tema escuro ---- */
+.leaflet-container {
+  background: var(--bg);
+  font-family: var(--sans);
+}
+
+.leaflet-bar {
+  border: 0 !important;
+  box-shadow: var(--sombra) !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+
+  a,
+  a:hover {
+    width: 40px !important;
+    height: 40px !important;
+    line-height: 40px !important;
+    background: var(--superficie) !important;
+    color: var(--texto) !important;
+    border-bottom: 1px solid var(--borda) !important;
+  }
+
+  a:hover {
+    background: var(--superficie-2) !important;
+  }
+}
+
+.leaflet-control-attribution {
+  background: rgb(10 8 8 / 70%) !important;
+  color: var(--texto-3) !important;
+  font-size: 10px;
+
+  a {
+    color: var(--texto-2) !important;
+  }
+}
+
+.leaflet-tooltip.dica {
+  background: var(--superficie);
+  color: var(--texto);
+  border: 1px solid var(--borda-forte);
+  border-radius: 8px;
+  box-shadow: var(--sombra);
+  font-size: 12px;
+
+  &::before {
+    display: none;
+  }
+}
+
+/* No celular o painel ocupa a base da tela: zoom por pinça. */
+@media (max-width: 760px) {
+  .leaflet-control-zoom {
+    display: none;
+  }
+
+  .leaflet-bottom {
+    bottom: 34dvh;
+  }
+}
+
+/* Paradas: miolo escuro, borda na cor do itinerário. */
+path.parada {
+  fill: var(--bg);
+  cursor: pointer;
+  transition: stroke-width 0.15s;
+
+  &.ativa {
+    fill: var(--texto);
+    stroke-width: 3;
+  }
+}
+
+.mapa-claro path.parada:not(.ativa) {
+  fill: #fff;
+}
+
+/* Usada pelos marcadores do mapa (fora do encapsulamento dos componentes). */
+@keyframes radar {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
 }

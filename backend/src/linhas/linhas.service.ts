@@ -7,8 +7,18 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import {
+  Observable,
+  Subject,
+  defer,
+  distinctUntilChanged,
+  filter,
+  from,
+  merge,
+} from 'rxjs';
 import { config } from '../config.js';
 import { NubusClient } from '../nubus/nubus.client.js';
+import type { NubusItinerario } from '../nubus/nubus.types.js';
 import {
   parseCarros,
   parseParadas,
@@ -26,6 +36,8 @@ interface LinhaAcompanhada {
   numero: string;
   /** Último GET de algum cliente; linhas sem acesso deixam de ser consultadas. */
   ultimoAcesso: number;
+  /** Conexões de streaming abertas; enquanto houver, a linha segue acompanhada. */
+  assinantes: number;
   itinerarios?: { lista: ItinerarioRef[]; buscadoEm: number };
   snapshot?: LinhaDto;
   snapshotEm?: number;
@@ -50,11 +62,42 @@ export class LinhasService {
   /** Global (e não por linha) porque o mesmo veículo pode trocar de linha. */
   private readonly velocidade = new RastreadorVelocidade();
   private loopRodando = false;
+  /** Cada snapshot novo (ou marcado como desatualizado) de qualquer linha. */
+  private readonly atualizacoes = new Subject<LinhaDto>();
 
   constructor(private readonly nubus: NubusClient) {}
 
   /** Dados consolidados da linha. Na 1ª vez, consulta a API e passa a acompanhá-la. */
   async obter(numeroBruto: string): Promise<LinhaDto> {
+    return this.snapshotDe(this.registrar(numeroBruto));
+  }
+
+  /**
+   * Snapshot atual da linha e, depois, cada atualização do loop, empurrada
+   * assim que sai (sem o cliente precisar perguntar). Enquanto houver alguém
+   * inscrito, a linha não é descartada por inatividade.
+   */
+  observar(numeroBruto: string): Observable<LinhaDto> {
+    return defer(() => {
+      const linha = this.registrar(numeroBruto);
+      linha.assinantes++;
+      const fluxo = merge(
+        from(this.snapshotDe(linha)),
+        this.atualizacoes.pipe(filter((s) => s.numero === linha.numero)),
+      ).pipe(distinctUntilChanged()); // 1ª busca chega pelos dois caminhos
+      return new Observable<LinhaDto>((assinante) => {
+        const sub = fluxo.subscribe(assinante);
+        return () => {
+          sub.unsubscribe();
+          linha.assinantes--;
+          linha.ultimoAcesso = Date.now();
+        };
+      });
+    });
+  }
+
+  /** Valida o número e passa a acompanhar a linha (se ainda não estiver). */
+  private registrar(numeroBruto: string): LinhaAcompanhada {
     const numero = numeroBruto.trim().toUpperCase();
     if (!NUMERO_VALIDO.test(numero)) {
       throw new BadRequestException('Número de linha inválido');
@@ -67,18 +110,21 @@ export class LinhasService {
           'Muitas linhas acompanhadas no momento, tente novamente em instantes',
         );
       }
-      linha = { numero, ultimoAcesso: Date.now() };
+      linha = { numero, ultimoAcesso: Date.now(), assinantes: 0 };
       this.linhas.set(numero, linha);
     }
     linha.ultimoAcesso = Date.now();
+    return linha;
+  }
 
+  private async snapshotDe(linha: LinhaAcompanhada): Promise<LinhaDto> {
     if (linha.snapshot) return linha.snapshot;
 
     try {
       return await this.atualizar(linha);
     } catch (e) {
       // Não deixa linha inexistente (ou que falhou de primeira) presa no loop.
-      if (!linha.snapshot) this.linhas.delete(numero);
+      if (!linha.snapshot) this.linhas.delete(linha.numero);
       throw e;
     }
   }
@@ -97,6 +143,7 @@ export class LinhasService {
       const agora = Date.now();
       const pendentes: LinhaAcompanhada[] = [];
       for (const linha of this.linhas.values()) {
+        if (linha.assinantes > 0) linha.ultimoAcesso = agora;
         if (agora - linha.ultimoAcesso > config.linhaInativaMs) {
           this.linhas.delete(linha.numero);
           this.logger.log(
@@ -118,8 +165,10 @@ export class LinhasService {
           this.logger.warn(
             `Falha ao atualizar linha ${linha.numero}: ${(e as Error).message}`,
           );
-          if (linha.snapshot)
+          if (linha.snapshot && !linha.snapshot.desatualizado) {
             linha.snapshot = { ...linha.snapshot, desatualizado: true };
+            this.atualizacoes.next(linha.snapshot);
+          }
         }
       });
       this.velocidade.esquecerAntigos(Date.now());
@@ -216,6 +265,7 @@ export class LinhasService {
     };
     linha.snapshot = snapshot;
     linha.snapshotEm = agora;
+    this.atualizacoes.next(snapshot);
     return snapshot;
   }
 
@@ -237,14 +287,14 @@ export class LinhasService {
       );
     }
 
-    // TODO: confirmar se a pesquisa é por prefixo (ex.: "33" trazendo "330").
-    // Se for, filtrar aqui pelo número da linha presente na descrição.
-    const lista = brutos
-      .filter((b) => b.codigoItinerario != null && b.codigoItinerario !== '')
-      .map((b) => ({
-        codigo: String(b.codigoItinerario),
-        descricao: (b.descricaoItinerario ?? '').trim(),
-      }));
+    // A pesquisa é por trecho: "33" traz também 33A, 33B e 133.
+    const lista: ItinerarioRef[] = [];
+    for (const b of filtrarPorLinha(brutos, linha.numero)) {
+      if (b.codigoItinerario == null || b.codigoItinerario === '') continue;
+      const codigo = String(b.codigoItinerario);
+      if (lista.some((x) => x.codigo === codigo)) continue; // a API repete itens
+      lista.push({ codigo, descricao: (b.descricaoItinerario ?? '').trim() });
+    }
     if (lista.length === 0) {
       throw new NotFoundException(`Linha ${linha.numero} não encontrada`);
     }
@@ -252,6 +302,24 @@ export class LinhasService {
     linha.itinerarios = { lista, buscadoEm: Date.now() };
     return lista;
   }
+}
+
+/**
+ * Mantém só os itinerários da linha pedida: "O-33" e "O-33 Extra" são da 33;
+ * "O-33A" e "133" não. Se a API não informar `descricaolinha`, não filtra.
+ */
+export function filtrarPorLinha(
+  brutos: NubusItinerario[],
+  numero: string,
+): NubusItinerario[] {
+  const numeroDe = (b: NubusItinerario) =>
+    b.descricaolinha
+      ?.trim()
+      .replace(/^[A-Za-z]+-/, '')
+      .split(/\s+/)[0]
+      .toUpperCase();
+  if (brutos.some((b) => !b.descricaolinha)) return brutos;
+  return brutos.filter((b) => numeroDe(b) === numero.toUpperCase());
 }
 
 /** Executa `fn` sobre os itens com no máximo `limite` chamadas simultâneas. */

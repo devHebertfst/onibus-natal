@@ -11,26 +11,53 @@
 /* Os marcadores são criados pelo Leaflet fora do template: estilos globais. */
 :host ::ng-deep {
   .onibus-icone {
+    --cor: #8a8585;
     background: none;
     border: none;
+
+    &.selecionado {
+      z-index: 1000 !important;
+
+      .pulso {
+        animation: radar 1.8s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+      }
+
+      .rotulo {
+        border-color: var(--cor);
+      }
+    }
   }
 
   .onibus {
     position: relative;
   }
 
-  /* Círculo com "bico" apontando para o rumo do ônibus. */
-  .seta {
-    --cor: #616161;
+  .pulso {
     position: absolute;
     left: -11px;
     top: -11px;
     width: 22px;
     height: 22px;
     border-radius: 50%;
+    border: 2px solid var(--cor);
+    box-sizing: border-box;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* Círculo com "bico" apontando para o rumo do ônibus. */
+  .seta {
+    position: absolute;
+    left: -10px;
+    top: -10px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
     background: var(--cor);
-    border: 2px solid #fff;
-    box-shadow: 0 1px 4px rgb(0 0 0 / 40%);
+    border: 2px solid var(--bg);
+    box-shadow:
+      0 0 0 1px var(--cor),
+      0 0 14px var(--cor);
     box-sizing: border-box;
     transition: background 0.3s;
 
@@ -38,7 +65,7 @@
       content: '';
       position: absolute;
       left: 50%;
-      top: -7px;
+      top: -8px;
       transform: translateX(-50%);
       border: 5px solid transparent;
       border-bottom: 7px solid var(--cor);
@@ -48,17 +75,35 @@
 
   .rotulo {
     position: absolute;
-    left: 14px;
-    top: -9px;
+    left: 15px;
+    top: -10px;
     white-space: nowrap;
     font:
-      600 11px/1 system-ui,
-      sans-serif;
-    background: rgb(255 255 255 / 92%);
-    color: #212121;
-    padding: 3px 5px;
-    border-radius: 4px;
-    box-shadow: 0 1px 3px rgb(0 0 0 / 25%);
+      600 11px/1 var(--mono),
+      monospace;
+    background: rgb(20 16 16 / 92%);
+    color: var(--texto);
+    padding: 4px 6px;
+    border: 1px solid var(--borda-forte);
+    border-radius: 6px;
     pointer-events: none;
+  }
+
+  .eu-icone {
+    background: none;
+    border: none;
+  }
+
+  .eu {
+    position: absolute;
+    left: -8px;
+    top: -8px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #4dabf7;
+    border: 3px solid #fff;
+    box-sizing: border-box;
+    box-shadow: 0 0 0 6px rgb(77 171 247 / 25%);
   }
 }

@@ -28,15 +28,16 @@ export class NubusClient {
   async paradasEspecifica(
     codigoItinerario: string,
   ): Promise<NubusParadasEspecifica> {
-    const dados = await this.post<NubusParadasEspecifica | null>(
-      '/previsoes/ListaParadasEspecificaV2',
-      {
-        cidade: config.nubus.cidade,
-        itinerario: codigoItinerario,
-        carro: 'true',
-      },
-    );
-    return dados ?? {};
+    const dados = await this.post<
+      NubusParadasEspecifica[] | NubusParadasEspecifica | null
+    >('/previsoes/ListaParadasEspecificaV2', {
+      cidade: config.nubus.cidade,
+      itinerario: codigoItinerario,
+      carro: 'true',
+    });
+    // Normalmente `[{ itinerario, paradas, pontos, carros }]`; aceita também
+    // o objeto solto, por segurança.
+    return (Array.isArray(dados) ? dados[0] : dados) ?? {};
   }
 
   private async post<T>(caminho: string, corpo: object): Promise<T> {

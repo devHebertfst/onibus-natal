@@ -1,19 +1,37 @@
 import { Component, DestroyRef, effect, inject, input, output } from '@angular/core';
 import { LeafletModule } from '@bluehalo/ngx-leaflet';
 import * as L from 'leaflet';
-import { Linha } from '../core/linha.models';
+import { Linha, Parada } from '../core/linha.models';
 import { Frota } from './dead-reckoning/frota';
+import { Previsao, preverChegadas } from './dead-reckoning/previsao';
 
 export interface DadosMapa {
   linha: Linha;
   recebidoEm: number;
 }
 
-/** Cores dos itinerários (ida, volta, variantes...). */
-export const CORES = ['#1565c0', '#e65100', '#2e7d32', '#6a1b9a', '#ad1457', '#00838f'];
-const COR_SEM_ROTA = '#616161';
+export interface ParadaSelecionada {
+  itinerario: string;
+  parada: Parada;
+}
+
+export type EstiloMapa = 'escuro' | 'claro';
+
+/** Cores dos itinerários (ida, volta, variantes...), legíveis sobre o mapa escuro. */
+export const CORES = ['#f4423e', '#4dabf7', '#ffd43b', '#69db7c', '#da77f2', '#3bc9db'];
+export const COR_SEM_ROTA = '#8a8585';
 
 const NATAL: L.LatLngTuple = [-5.7945, -35.211];
+const ATRIBUICAO = 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap';
+
+/** Mapas-base da Esri (sem chave de API): fundo sem rótulos + camada de nomes por cima. */
+function esri(servico: string): L.TileLayer {
+  return L.tileLayer(
+    `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/${servico}/MapServer/tile/{z}/{y}/{x}`,
+    // Acima do zoom 16 a Esri não tem tiles: amplia os do 16.
+    { maxNativeZoom: 16, maxZoom: 19, attribution: ATRIBUICAO },
+  );
+}
 
 interface Marcador {
   marker: L.Marker;
@@ -38,27 +56,22 @@ interface Marcador {
 })
 export class Mapa {
   readonly dados = input<DadosMapa | null>(null);
+  readonly estilo = input<EstiloMapa>('escuro');
+  readonly selecionado = input<string | null>(null);
+  readonly paradaSelecionada = input<ParadaSelecionada | null>(null);
   readonly onibusClicado = output<string>();
+  readonly paradaClicada = output<ParadaSelecionada>();
 
-  private readonly tiles = {
-    'Esri Light Gray': L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-      {
-        maxZoom: 16,
-        attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap',
-      },
-    ),
-    OpenStreetMap: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    }),
+  private readonly tiles: Record<EstiloMapa, L.LayerGroup> = {
+    escuro: L.layerGroup([esri('World_Dark_Gray_Base'), esri('World_Dark_Gray_Reference')]),
+    claro: L.layerGroup([esri('World_Light_Gray_Base'), esri('World_Light_Gray_Reference')]),
   };
 
   readonly opcoes: L.MapOptions = {
-    layers: [this.tiles['Esri Light Gray']],
     center: NATAL,
-    zoom: 12,
-    zoomControl: true,
+    zoom: 13,
+    zoomControl: false,
+    attributionControl: true,
   };
 
   private mapa?: L.Map;
@@ -66,9 +79,12 @@ export class Mapa {
   private readonly camadaParadas = L.layerGroup();
   private readonly camadaOnibus = L.layerGroup();
   private readonly marcadores = new Map<string, Marcador>();
+  private readonly paradas = new Map<string, L.CircleMarker>();
+  private eu?: L.Marker;
   private frota = new Frota();
-  private numeroAtual: string | null = null;
+  private linhaAtual: Linha | null = null;
   private assinaturaTracado = '';
+  private limitesTracado?: L.LatLngBounds;
   private cores = new Map<string, string>();
   private raf = 0;
 
@@ -77,21 +93,37 @@ export class Mapa {
       const dados = this.dados();
       if (this.mapa) this.aplicar(dados);
     });
+    effect(() => {
+      const estilo = this.estilo();
+      if (this.mapa) this.aplicarEstilo(estilo);
+    });
+    effect(() => {
+      const id = this.selecionado();
+      for (const [chave, m] of this.marcadores)
+        m.marker.getElement()?.classList.toggle('selecionado', chave === id);
+    });
+    effect(() => {
+      const sel = this.paradaSelecionada();
+      for (const [chave, c] of this.paradas) {
+        const ativa = sel !== null && chave === chaveParada(sel.itinerario, sel.parada.codigo);
+        c.setRadius(ativa ? 8 : 4);
+        c.getElement()?.classList.toggle('ativa', ativa);
+        if (ativa) c.bringToFront();
+      }
+    });
     inject(DestroyRef).onDestroy(() => cancelAnimationFrame(this.raf));
   }
 
   aoCarregar(mapa: L.Map): void {
     this.mapa = mapa;
+    this.aplicarEstilo(this.estilo());
+    L.control
+      .zoom({ position: 'bottomright', zoomInTitle: 'Aproximar', zoomOutTitle: 'Afastar' })
+      .addTo(mapa);
+    mapa.attributionControl.setPrefix(false);
     this.camadaTracado.addTo(mapa);
     this.camadaParadas.addTo(mapa);
     this.camadaOnibus.addTo(mapa);
-    L.control
-      .layers(
-        this.tiles,
-        { Paradas: this.camadaParadas, Ônibus: this.camadaOnibus },
-        { position: 'topright' },
-      )
-      .addTo(mapa);
     this.aplicar(this.dados());
     this.loop();
   }
@@ -102,16 +134,80 @@ export class Mapa {
     if (m && this.mapa) this.mapa.flyTo(m.marker.getLatLng(), Math.max(this.mapa.getZoom(), 16));
   }
 
+  /** Volta a mostrar o traçado inteiro da linha. */
+  enquadrar(): void {
+    if (this.limitesTracado?.isValid())
+      this.mapa?.flyToBounds(this.limitesTracado, { padding: [48, 48] });
+  }
+
+  /** Centraliza na posição do aparelho. Devolve uma mensagem se não der. */
+  centralizarEmMim(): Promise<string | null> {
+    if (!('geolocation' in navigator))
+      return Promise.resolve('Este aparelho não oferece geolocalização.');
+    return new Promise((resolve) =>
+      navigator.geolocation.getCurrentPosition(
+        ({ coords }) => {
+          const pos: L.LatLngTuple = [coords.latitude, coords.longitude];
+          if (!this.eu) {
+            this.eu = L.marker(pos, {
+              icon: L.divIcon({
+                className: 'eu-icone',
+                html: '<div class="eu"></div>',
+                iconSize: [0, 0],
+              }),
+              keyboard: false,
+              interactive: false,
+            });
+          }
+          if (this.mapa) {
+            this.eu.setLatLng(pos).addTo(this.mapa);
+            this.mapa.flyTo(pos, Math.max(this.mapa.getZoom(), 16));
+          }
+          resolve(null);
+        },
+        (e) =>
+          resolve(
+            e.code === e.PERMISSION_DENIED
+              ? 'Permita o acesso à localização para centralizar no mapa.'
+              : e.code === e.TIMEOUT
+                ? 'A localização demorou demais para responder.'
+                : 'Localização indisponível no momento.',
+          ),
+        { enableHighAccuracy: true, timeout: 10_000, maximumAge: 30_000 },
+      ),
+    );
+  }
+
+  /** Itinerário (sentido) inferido de cada ônibus pelo dead reckoning. */
+  sentidos(): Map<string, string | null> {
+    return new Map(
+      [...this.frota.onibus].map(([id, o]) => [id, o.posicaoNaRota()?.codigo ?? null]),
+    );
+  }
+
+  /** Ônibus a caminho de uma parada, com estimativa de chegada. */
+  previsoes(sel: ParadaSelecionada): Previsao[] {
+    const it = this.linhaAtual?.itinerarios.find((i) => i.codigo === sel.itinerario);
+    return it ? preverChegadas(this.frota, it.codigo, it.paradas, sel.parada.codigo) : [];
+  }
+
+  private aplicarEstilo(estilo: EstiloMapa): void {
+    if (!this.mapa) return;
+    for (const [nome, camada] of Object.entries(this.tiles)) {
+      if (nome === estilo) camada.addTo(this.mapa);
+      else camada.remove();
+    }
+    this.mapa.getContainer().classList.toggle('mapa-claro', estilo === 'claro');
+  }
+
   private aplicar(dados: DadosMapa | null): void {
     if (!dados) {
       this.limpar();
       return;
     }
     const { linha, recebidoEm } = dados;
-    if (linha.numero !== this.numeroAtual) {
-      this.limpar();
-      this.numeroAtual = linha.numero;
-    }
+    if (linha.numero !== this.linhaAtual?.numero) this.limpar();
+    this.linhaAtual = linha;
 
     this.desenharTracado(linha);
     const removidos = this.frota.sincronizar(linha, recebidoEm, Date.now());
@@ -136,36 +232,44 @@ export class Mapa {
 
     this.camadaTracado.clearLayers();
     this.camadaParadas.clearLayers();
+    this.paradas.clear();
     this.cores = new Map(linha.itinerarios.map((it, i) => [it.codigo, CORES[i % CORES.length]]));
 
     const limites = L.latLngBounds([]);
     for (const it of linha.itinerarios) {
       const cor = this.cores.get(it.codigo)!;
       if (it.tracado.length >= 2) {
-        const linhaMapa = L.polyline(it.tracado, { color: cor, weight: 4, opacity: 0.7 })
-          .bindTooltip(it.descricao, { sticky: true })
+        // Halo largo e translúcido + linha fina: efeito de "brilho" no mapa escuro.
+        L.polyline(it.tracado, { color: cor, weight: 11, opacity: 0.16, interactive: false }).addTo(
+          this.camadaTracado,
+        );
+        const linhaMapa = L.polyline(it.tracado, { color: cor, weight: 3.5, opacity: 0.95 })
+          .bindTooltip(it.descricao, { sticky: true, className: 'dica' })
           .addTo(this.camadaTracado);
         limites.extend(linhaMapa.getBounds());
       }
       for (const p of it.paradas) {
-        L.circleMarker([p.lat, p.lng], {
+        const marcador = L.circleMarker([p.lat, p.lng], {
           radius: 4,
           color: cor,
           weight: 2,
-          fillColor: '#fff',
           fillOpacity: 1,
+          className: 'parada',
         })
-          .bindTooltip(p.descricao || `Parada ${p.codigo}`)
+          .bindTooltip(p.descricao || `Parada ${p.codigo}`, { className: 'dica' })
+          .on('click', () => this.paradaClicada.emit({ itinerario: it.codigo, parada: p }))
           .addTo(this.camadaParadas);
+        this.paradas.set(chaveParada(it.codigo, p.codigo), marcador);
       }
     }
-    if (limites.isValid()) this.mapa?.fitBounds(limites, { padding: [24, 24] });
+    this.limitesTracado = limites;
+    if (limites.isValid()) this.mapa?.fitBounds(limites, { padding: [48, 48] });
   }
 
   private criarMarcador(id: string, lat: number, lng: number): Marcador {
     const icone = L.divIcon({
       className: 'onibus-icone',
-      html: `<div class="onibus"><div class="seta"></div><div class="rotulo"></div></div>`,
+      html: `<div class="onibus"><div class="pulso"></div><div class="seta"></div><div class="rotulo"></div></div>`,
       iconSize: [0, 0],
     });
     const marker = L.marker([lat, lng], { icon: icone, keyboard: false, riseOnHover: true })
@@ -189,13 +293,14 @@ export class Mapa {
         m.seta = el?.querySelector<HTMLElement>('.seta');
         const rotulo = el?.querySelector('.rotulo');
         if (rotulo) rotulo.textContent = m.texto;
+        el?.classList.toggle('selecionado', id === this.selecionado());
         m.ultimoRumo = null;
         m.ultimaCor = '';
       }
 
       const cor = q.itinerario ? (this.cores.get(q.itinerario) ?? COR_SEM_ROTA) : COR_SEM_ROTA;
-      if (m.seta && cor !== m.ultimaCor) {
-        m.seta.style.setProperty('--cor', cor);
+      if (m.el && cor !== m.ultimaCor) {
+        m.el.style.setProperty('--cor', cor);
         m.ultimaCor = cor;
       }
       if (
@@ -216,8 +321,14 @@ export class Mapa {
     this.camadaParadas.clearLayers();
     this.camadaOnibus.clearLayers();
     this.marcadores.clear();
+    this.paradas.clear();
     this.frota = new Frota();
-    this.numeroAtual = null;
+    this.linhaAtual = null;
     this.assinaturaTracado = '';
+    this.limitesTracado = undefined;
   }
+}
+
+function chaveParada(itinerario: string, codigo: string): string {
+  return `${itinerario}|${codigo}`;
 }

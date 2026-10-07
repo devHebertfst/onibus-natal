@@ -11,6 +11,11 @@ export class Frota {
   private rotas = new Map<string, Rota>();
   private assinaturaRotas = '';
 
+  /** Traçado já preparado de um itinerário. */
+  rota(codigo: string): Rota | undefined {
+    return this.rotas.get(codigo);
+  }
+
   /** Aplica uma resposta do backend. Devolve os ids que sumiram. */
   sincronizar(linha: Linha, recebidoEm: number, agora = recebidoEm): string[] {
     this.definirRotas(linha.itinerarios);

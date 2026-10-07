@@ -4,12 +4,13 @@ Aplicação web que mostra os ônibus de Natal/RN se movendo no mapa, a partir
 da API pública de transporte (Nubus).
 
 ```
-API de transporte ──(poll a cada 15s)──> Backend (NestJS) ──> navegadores (Angular + Leaflet)
+API de transporte ──(poll a cada 15s)──> Backend (NestJS) ──(SSE, push)──> navegadores (Angular + Leaflet)
 ```
 
 O backend consulta a API **uma vez por linha** a cada 15s, independentemente
 de quantas pessoas estejam olhando, e guarda o resultado em memória. Os
-navegadores só falam com o backend.
+navegadores só falam com o backend, que **empurra** cada atualização por
+Server-Sent Events assim que ela sai, sem o navegador precisar perguntar.
 
 ## Estrutura
 
@@ -26,7 +27,7 @@ onibus-natal/
 │   │   │   └── nubus.types.ts     formato bruto da API
 │   │   └── linhas/
 │   │       ├── linhas.controller.ts   GET /api/linhas/:numero
-│   │       ├── linhas.service.ts      cache, dedup, loop de 15s
+│   │       ├── linhas.service.ts      cache, dedup, loop de 15s, observar()
 │   │       ├── velocidade.ts          média móvel de 90s (Haversine)
 │   │       ├── geo.ts                 Haversine
 │   │       └── linha.dto.ts           contrato da resposta
@@ -36,7 +37,8 @@ onibus-natal/
     └── src/app/
         ├── app.ts|html|scss       busca, painel lateral, mapa
         ├── core/
-        │   ├── linha.service.ts   polling do backend
+        │   ├── linha.service.ts   EventSource (SSE) do backend
+        │   ├── favoritas.service.ts  favoritas/recentes (localStorage)
         │   └── linha.models.ts    tipos (espelho do DTO)
         └── mapa/
             ├── mapa.ts|scss       componente Leaflet + loop de animação
@@ -115,6 +117,18 @@ acompanhada após 5 min sem acessos.
 }
 ```
 
+`GET /api/linhas/:numero/stream` é a versão em tempo real (Server-Sent
+Events): envia o snapshot atual e depois cada atualização como `event: linha`
+(mesmo JSON acima). Um erro vira `event: erro` com `{ status, message }` e
+encerra o fluxo; o `EventSource` reconecta sozinho, e o frontend só fecha a
+conexão em erros definitivos (400/404). A cada 20s vai um comentário `: ping`
+para proxies não derrubarem a conexão. Enquanto houver alguém conectado, a
+linha continua sendo acompanhada.
+
+```bash
+curl -N http://localhost:3000/api/linhas/33/stream
+```
+
 `GET /api/linhas` lista as linhas acompanhadas no momento.
 
 ## Decisões de projeto
@@ -146,25 +160,38 @@ requisições simultâneas compartilham a mesma consulta. O backend acompanha
 no máximo 40 linhas (configurável), com até 4 em paralelo. A lista de
 itinerários é cacheada por 6h.
 
-## Pontos a validar com a API real
+## Formato real da API (conferido)
 
-O código foi testado com uma API simulada, porque a API real não estava
-acessível do ambiente de desenvolvimento. Vale conferir:
+- `PesquisaRotas` busca por trecho: `"33"` traz 33, 33 Extra, 33A, 33B e 133.
+  `filtrarPorLinha` mantém só os itinerários cujo `descricaolinha` (`"O-33"`,
+  `"O-33 Extra"`) bate com o número pedido. A API também repete itens, que
+  são descartados.
+- `ListaParadasEspecificaV2` devolve uma **lista** com um item
+  (`[{ itinerario, paradas, pontos, carros }]`), não um objeto.
+- `Lat`/`Long` das paradas vêm como string, e as dos carros como número.
 
-- se `PesquisaRotas` com `"33"` também devolve linhas como `"330"` (busca por
-  prefixo). Se sim, filtrar em `LinhasService.itinerariosDa` (há um `TODO`);
-- se `ListaParadasEspecificaV2` devolve só os carros do itinerário ou todos
-  da linha;
-- o formato real de `Lat`/`Long` (número ou string). O parser aceita os dois,
-  inclusive com vírgula decimal.
+## Interface
+
+O visual segue a linha de painel de telemetria do
+[Ponto.OS](https://pontoos.com.br/) (Cuiabá): tema escuro com acento
+vermelho, mapa em tela cheia e o painel flutuando por cima (no celular ele
+vira uma gaveta embaixo).
+- Status da conexão (ao vivo / reconectando / atrasado) e há quantos segundos
+  chegou o último dado.
+- Linhas favoritas e recentes, guardadas no navegador.
+- Toque numa parada para ver os próximos ônibus com estimativa de chegada:
+  distância pelo traçado até a parada (paradas projetadas no traçado, em
+  ordem) dividida pela velocidade comercial de 18 km/h.
+- Mapa escuro ou claro (Esri Dark/Light Gray, sem chave de API), botão
+  "centralizar em mim", tela de abertura e manifest para instalar como app.
+- Atalhos: `/` busca, `R` enquadra a rota, `F` favorita, `Esc` fecha.
 
 ## Próximas fases
 
-- **WebSocket**: trocar o polling de 5s do frontend por push (`@nestjs/websockets`
-  + socket.io). O `LinhasService` já concentra os snapshots; basta emitir após
-  `consolidar()` para a "sala" da linha.
+- **Busca por parada e planejador de rota** (a pé + ônibus), como no Ponto.OS.
+- **Service worker** para o app instalado abrir mesmo com internet fraca.
 - **PostgreSQL + PostGIS**: gravar as posições (`geography(Point)`) para
   histórico, tempos de viagem e velocidades médias por trecho.
-- **Modelagem das paradas**: projetar as paradas no traçado (`s` de cada uma)
-  e incluir tempo de parada no dead reckoning, o que reduz o "adiantamento"
-  perto dos pontos.
+- **Tempo de parada**: as paradas já são projetadas no traçado (`s` de cada
+  uma, usado na previsão de chegada); falta incluir o tempo parado no ponto
+  no dead reckoning, o que reduz o "adiantamento" perto dos pontos.

@@ -1,4 +1,7 @@
+import { Linha } from '../../core/linha.models';
+import { Frota } from './frota';
 import { OnibusAnimado } from './onibus-animado';
+import { preverChegadas } from './previsao';
 import { Rota, distanciaM } from './rota';
 
 /** Avenida reta de 2 km rumo ao norte, com um ponto a cada 100 m. */
@@ -75,6 +78,42 @@ describe('OnibusAnimado', () => {
     o.atualizar(em(200), kmh36, 20_000, [ida], 20_000);
     const q = o.quadro(600_000)!;
     expect(ida.projetar(q.lat, q.lng).s).toBeCloseTo(600, 0); // 200 + 40 s · 10 m/s
+  });
+});
+
+describe('preverChegadas', () => {
+  it('lista os ônibus que ainda vão passar pela parada, do mais próximo ao mais longe', () => {
+    const paradas = [0, 1000, 1500].map((m, i) => ({
+      codigo: `P${i}`,
+      descricao: '',
+      ordem: i,
+      lat: em(m)[0],
+      lng: em(m)[1],
+    }));
+    const linha = (t: number, pos: Record<string, number>): Linha => ({
+      numero: '1',
+      atualizadoEm: new Date(t).toISOString(),
+      desatualizado: false,
+      itinerarios: [{ codigo: 'ida', descricao: 'IDA', tracado: reta, paradas }],
+      onibus: Object.entries(pos).map(([id, m]) => ({
+        id,
+        lat: em(m)[0],
+        lng: em(m)[1],
+        velocidadeKmh: 36,
+        itinerarios: ['ida'],
+        posicaoDesde: new Date(t).toISOString(),
+      })),
+    });
+
+    const frota = new Frota();
+    frota.sincronizar(linha(0, { A: 100, B: 600, C: 1200 }), 0);
+    frota.sincronizar(linha(20_000, { A: 200, B: 700, C: 1300 }), 20_000);
+    for (const o of frota.onibus.values()) o.quadro(20_000);
+
+    const p = preverChegadas(frota, 'ida', paradas, 'P1');
+    expect(p.map((x) => x.onibus)).toEqual(['B', 'A']); // C já passou
+    expect(p[0].metros).toBeCloseTo(300, -1);
+    expect(p[0].minutos).toBeCloseTo(1, 0); // 300 m a 18 km/h
   });
 });
 

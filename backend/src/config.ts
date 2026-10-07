@@ -23,6 +23,9 @@ export const config = {
   /** Intervalo do loop de atualização das linhas acompanhadas. */
   pollIntervalMs: num(process.env.POLL_INTERVAL_MS, 15_000),
 
+  /** Comentário periódico no stream SSE para proxies não derrubarem a conexão. */
+  ssePingMs: num(process.env.SSE_PING_MS, 20_000),
+
   /** Uma linha deixa de ser acompanhada se ninguém a pedir por esse tempo. */
   linhaInativaMs: num(process.env.LINHA_INATIVA_MS, 5 * 60_000),
 

@@ -8,6 +8,10 @@
 export interface NubusItinerario {
   codigoItinerario: string | number;
   descricaoItinerario: string;
+  /** Ex.: "CDNO-33", "CMPO-33A", "COM133". */
+  codigolinha?: string;
+  /** Número exibido da linha, às vezes com prefixo: "O-33", "O-33 Extra", "133". */
+  descricaolinha?: string;
 }
 
 export interface NubusParada {
@@ -24,7 +28,10 @@ export interface NubusCarro {
   Long: number | string;
 }
 
-/** Resposta de `POST /previsoes/ListaParadasEspecificaV2`. */
+/**
+ * Item de `POST /previsoes/ListaParadasEspecificaV2` (a API devolve uma lista
+ * com um item por itinerário pedido).
+ */
 export interface NubusParadasEspecifica {
   paradas?: NubusParada[] | null;
   /** Traçado: "lat long|lat long|..." */

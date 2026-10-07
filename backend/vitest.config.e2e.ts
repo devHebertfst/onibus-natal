@@ -7,5 +7,6 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.e2e-spec.ts'],
+    env: { SSE_PING_MS: '200' },
   },
 });

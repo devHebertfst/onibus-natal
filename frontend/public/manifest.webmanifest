@@ -1,0 +1,16 @@
+{
+  "name": "Ônibus Natal — ao vivo",
+  "short_name": "Ônibus Natal",
+  "description": "Ônibus de Natal/RN se movendo no mapa em tempo real, com previsão de chegada nas paradas.",
+  "start_url": "/",
+  "scope": "/",
+  "id": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0808",
+  "theme_color": "#0a0808",
+  "lang": "pt-BR",
+  "categories": ["travel", "navigation", "utilities"],
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }],
+  "shortcuts": [{ "name": "Favoritas", "short_name": "Favoritas", "url": "/?painel=favoritas" }]
+}

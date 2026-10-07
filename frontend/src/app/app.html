@@ -1,71 +1,272 @@
-<aside class="painel">
-  <header>
-    <h1>Ônibus Natal</h1>
-    <form (submit)="$event.preventDefault(); acompanhar(campo.value)">
-      <input
-        #campo
-        [value]="numero() ?? ''"
-        type="text"
-        inputmode="numeric"
-        autocomplete="off"
-        placeholder="Número da linha (ex.: 33)"
-        aria-label="Número da linha"
-        maxlength="10"
-      />
-      <button type="submit">Ver</button>
-    </form>
-  </header>
+<app-mapa
+  class="mapa"
+  [dados]="dados()"
+  [estilo]="estilo()"
+  [selecionado]="selecionado()"
+  [paradaSelecionada]="paradaSel()"
+  (onibusClicado)="focar($event)"
+  (paradaClicada)="selecionarParada($event)"
+/>
 
-  @if (erro(); as mensagem) {
-    <p class="aviso erro">{{ mensagem }}</p>
+<header class="topo">
+  <div class="marca">
+    <h1>Ônibus<span>.natal</span></h1>
+    <p>ao vivo · natal/rn</p>
+  </div>
+  @if (indicador(); as ind) {
+    <div class="status" [class]="ind.tipo" role="status">
+      <span class="ponto"></span>
+      <span>{{ ind.rotulo }}</span>
+      @if (idadeS() !== null) {
+        <span class="idade">{{ idadeS() }}s</span>
+      }
+    </div>
   }
-  @if (carregando()) {
-    <p class="aviso">Carregando linha {{ numero() }}…</p>
+</header>
+
+<div class="controles">
+  <button
+    type="button"
+    (click)="alternarEstilo()"
+    [title]="estilo() === 'escuro' ? 'Mapa claro, para luz direta' : 'Mapa escuro'"
+    aria-label="Estilo do mapa"
+  >
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m12 2 9 5-9 5-9-5 9-5Z" />
+      <path d="m3 12 9 5 9-5" />
+      <path d="m3 17 9 5 9-5" />
+    </svg>
+  </button>
+  <button
+    type="button"
+    (click)="centralizarEmMim()"
+    title="Centralizar em mim"
+    aria-label="Centralizar em mim"
+  >
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="7" />
+      <circle cx="12" cy="12" r="2.5" />
+      <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+    </svg>
+  </button>
+  @if (linha()) {
+    <button
+      type="button"
+      (click)="enquadrar()"
+      title="Enquadrar a rota (R)"
+      aria-label="Enquadrar rota"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"
+        />
+      </svg>
+    </button>
   }
+</div>
 
-  @if (linha(); as l) {
-    <section>
-      <h2>Linha {{ l.numero }}</h2>
-      <p class="meta">
-        Atualizado às {{ l.atualizadoEm | date: 'HH:mm:ss' }}
-        @if (l.desatualizado) {
-          <span class="tag">dados podem estar atrasados</span>
-        }
-      </p>
-      <ul class="legenda">
-        @for (it of itinerarios(); track it.codigo) {
-          <li>
-            <span class="cor" [style.background]="it.cor"></span>{{ it.descricao || it.codigo }}
-          </li>
-        }
-      </ul>
-    </section>
+<aside class="painel" [class.aberto]="painelAberto()">
+  <button
+    type="button"
+    class="alca"
+    (click)="painelAberto.set(!painelAberto())"
+    [attr.aria-expanded]="painelAberto()"
+    aria-label="Expandir detalhes"
+  ></button>
 
-    <section class="lista">
-      <h2>{{ onibus().length }} ônibus em circulação</h2>
-      <ul>
-        @for (o of onibus(); track o.id) {
+  <form class="busca" (submit)="$event.preventDefault(); acompanhar(campo.value)">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </svg>
+    <input
+      #campo
+      [value]="numero() ?? ''"
+      type="text"
+      inputmode="numeric"
+      autocomplete="off"
+      placeholder="Buscar linha (ex.: 33)"
+      aria-label="Número da linha"
+      maxlength="10"
+      (focus)="painelAberto.set(true)"
+    />
+    @if (numero()) {
+      <button type="button" class="limpar" (click)="fechar()" aria-label="Fechar linha">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+      </button>
+    }
+    <kbd>/</kbd>
+  </form>
+
+  <nav class="abas" role="tablist">
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="aba() === 'linha'"
+      (click)="aba.set('linha')"
+    >
+      Linha
+    </button>
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="aba() === 'favoritas'"
+      (click)="aba.set('favoritas')"
+    >
+      Favoritas
+      @if (fav.favoritas().length) {
+        <span class="contagem">{{ fav.favoritas().length }}</span>
+      }
+    </button>
+  </nav>
+
+  <div class="conteudo">
+    @if (aba() === 'favoritas') {
+      @if (fav.favoritas().length) {
+        <ul class="chips">
+          @for (n of fav.favoritas(); track n) {
+            <li>
+              <button type="button" (click)="acompanhar(n)">{{ n }}</button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="vazio">
+          Nenhuma linha favorita ainda. Abra uma linha e toque na estrela (ou aperte <kbd>F</kbd>).
+        </p>
+      }
+    } @else {
+      @if (erro(); as mensagem) {
+        <p class="aviso erro">{{ mensagem }}</p>
+      }
+      @if (carregando()) {
+        <div class="carregando">
+          <span class="radar"></span>
+          <span>Carregando linha {{ numero() }}…</span>
+        </div>
+      }
+
+      @if (linha(); as l) {
+        <section class="cabecalho-linha">
+          <div class="numero-linha">{{ l.numero }}</div>
+          <div class="resumo">
+            <strong>{{ onibus().length }} ônibus</strong>
+            <span>{{ emMovimento() }} em movimento</span>
+          </div>
+          <button
+            type="button"
+            class="estrela"
+            [class.ativa]="favorita()"
+            (click)="alternarFavorita()"
+            [attr.aria-pressed]="favorita()"
+            [title]="favorita() ? 'Remover das favoritas (F)' : 'Favoritar linha (F)'"
+            aria-label="Favoritar linha"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3Z"
+              />
+            </svg>
+          </button>
+        </section>
+
+        <ul class="legenda">
+          @for (it of itinerarios(); track it.codigo) {
+            <li><span class="cor" [style.--cor]="it.cor"></span>{{ it.descricao || it.codigo }}</li>
+          }
+        </ul>
+
+        <h2 class="rotulo-secao">Frota agora</h2>
+        <ul class="frota">
+          @for (o of onibus(); track o.id) {
+            <li>
+              <button
+                type="button"
+                [class.selecionado]="o.id === selecionado()"
+                (click)="focar(o.id)"
+                [style.--cor]="o.cor"
+              >
+                <span class="cor"></span>
+                <span class="info">
+                  <span class="id">{{ o.id }}</span>
+                  <span class="sentido">{{ o.sentido }}</span>
+                </span>
+                @if (o.paradoMin === null) {
+                  <span class="vel"
+                    ><b>{{ o.velocidadeKmh }}</b> km/h</span
+                  >
+                } @else {
+                  <span class="vel parado">
+                    parado{{ o.paradoMin >= 1 ? ' há ' + o.paradoMin + ' min' : '' }}
+                  </span>
+                }
+              </button>
+            </li>
+          } @empty {
+            <li class="vazio">Nenhum ônibus com GPS ativo agora.</li>
+          }
+        </ul>
+        <p class="dica">Toque numa parada do mapa para ver os próximos ônibus.</p>
+      } @else if (!carregando() && !erro()) {
+        <p class="vazio">Digite o número de uma linha para ver os ônibus se movendo no mapa.</p>
+      }
+
+      @if (!linha() && fav.recentes().length) {
+        <h2 class="rotulo-secao">Recentes</h2>
+        <ul class="chips">
+          @for (n of fav.recentes(); track n) {
+            <li>
+              <button type="button" (click)="acompanhar(n)">{{ n }}</button>
+            </li>
+          }
+        </ul>
+      }
+    }
+  </div>
+
+  <footer>
+    Dados: API Nubus · o servidor envia cada atualização assim que chega
+    <span class="atalhos"><kbd>/</kbd> buscar <kbd>R</kbd> rota <kbd>Esc</kbd> fechar</span>
+  </footer>
+</aside>
+
+@if (paradaInfo(); as p) {
+  <section class="cartao-parada" [style.--cor]="p.cor" aria-live="polite">
+    <header>
+      <span class="cor"></span>
+      <div>
+        <h2>{{ p.parada.descricao || 'Parada ' + p.parada.codigo }}</h2>
+        <p>sentido {{ p.sentido }}</p>
+      </div>
+      <button type="button" class="fechar" (click)="paradaSel.set(null)" aria-label="Fechar parada">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+      </button>
+    </header>
+    <ul>
+      @for (pv of previsoes(); track pv.onibus; let i = $index) {
+        @if (i < 4) {
           <li>
-            <button type="button" (click)="focar(o.id)">
-              <span class="cor" [style.background]="corDoOnibus(o.itinerarios)"></span>
-              <span class="id">{{ o.id }}</span>
-              <span class="vel" [class.parado]="o.velocidadeKmh === 0">
-                {{ o.velocidadeKmh === 0 ? 'parado' : o.velocidadeKmh + ' km/h' }}
+            <button type="button" (click)="focar(pv.onibus)">
+              <span class="id">{{ pv.onibus }}</span>
+              <span class="dist">{{ pv.metros / 1000 | number: '1.1-1' }} km</span>
+              <span class="eta">
+                @if (pv.minutos < 1) {
+                  <b>chegando</b>
+                } @else {
+                  <b>~{{ pv.minutos | number: '1.0-0' }}</b> min
+                }
               </span>
             </button>
           </li>
-        } @empty {
-          <li class="vazio">Nenhum ônibus com GPS ativo agora.</li>
         }
-      </ul>
-    </section>
-  } @else if (!carregando() && !erro()) {
-    <p class="aviso">Digite o número de uma linha para ver os ônibus no mapa.</p>
-  }
+      } @empty {
+        <li class="vazio">Nenhum ônibus a caminho desta parada no momento.</li>
+      }
+    </ul>
+    <p class="nota">Estimativa pela distância no traçado a ~18 km/h (média urbana).</p>
+  </section>
+}
 
-  <footer>Posições: API pública Nubus · atualização a cada ~15 s</footer>
-</aside>
-
-<main>
-  <app-mapa [dados]="dados()" (onibusClicado)="focar($event)" />
-</main>
+@if (aviso(); as texto) {
+  <div class="toast" role="alert">{{ texto }}</div>
+}

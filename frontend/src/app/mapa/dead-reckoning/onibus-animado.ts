@@ -111,6 +111,12 @@ export class OnibusAnimado {
     }
   }
 
+  /** Onde o ônibus está ao longo do traçado, se a rota (sentido) já foi inferida. */
+  posicaoNaRota(): { codigo: string; s: number } | null {
+    if (!this.rota) return null;
+    return { codigo: this.rota.codigo, s: this.sExibido ?? this.sFix };
+  }
+
   /** O traçado mudou: descarta a rota (será reinferida na próxima posição). */
   esquecerRota(): void {
     this.rota = null;

@@ -1,7 +1,9 @@
 import { NotFoundException } from '@nestjs/common';
+import { firstValueFrom } from 'rxjs';
 import { NubusClient } from '../nubus/nubus.client.js';
 import type { NubusParadasEspecifica } from '../nubus/nubus.types.js';
-import { LinhasService } from './linhas.service.js';
+import type { LinhaDto } from './linha.dto.js';
+import { LinhasService, filtrarPorLinha } from './linhas.service.js';
 
 function fakeClient(respostas: Record<string, NubusParadasEspecifica>) {
   return {
@@ -93,5 +95,78 @@ describe('LinhasService', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('observar empurra o snapshot atual e cada atualização do loop', async () => {
+    const client = fakeClient(respostas);
+    const service = new LinhasService(client as unknown as NubusClient);
+    vi.useFakeTimers();
+    try {
+      const recebidos: LinhaDto[] = [];
+      const sub = service.observar('33').subscribe((l) => recebidos.push(l));
+      await vi.waitFor(() => expect(recebidos).toHaveLength(1));
+
+      // Sem nenhum GET, o loop não descarta a linha enquanto há inscrito.
+      vi.advanceTimersByTime(10 * 60_000);
+      await service.atualizarTodas();
+      expect(recebidos).toHaveLength(2);
+      expect(service.acompanhadas()).toEqual(['33']);
+
+      // Falha: um único aviso de desatualizado, não um por ciclo.
+      client.paradasEspecifica.mockRejectedValue(new Error('timeout'));
+      for (let i = 0; i < 2; i++) {
+        vi.advanceTimersByTime(20_000);
+        await service.atualizarTodas();
+      }
+      expect(recebidos).toHaveLength(3);
+      expect(recebidos[2].desatualizado).toBe(true);
+
+      sub.unsubscribe();
+      vi.advanceTimersByTime(10 * 60_000);
+      await service.atualizarTodas();
+      expect(service.acompanhadas()).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('observar propaga erro de linha inexistente', async () => {
+    const service = new LinhasService(
+      fakeClient(respostas) as unknown as NubusClient,
+    );
+    await expect(
+      firstValueFrom(service.observar('999')),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('filtra os itinerários pelo número exato da linha e remove repetidos', async () => {
+    const brutos = [
+      ['CDNO-33Planalto / Praia do Meio', 'O-33'],
+      ['CDNO-33 ExtraPlanalto / Mae Luiza', 'O-33 Extra'],
+      ['CMPO-33APlanalto / Midway', 'O-33A'],
+      ['CMPO-33BPlanalto / Lagoa Seca', 'O-33B'],
+      ['CMPO-33BPlanalto / Lagoa Seca', 'O-33B'],
+      ['COM133Jardim Petrópolis / Natal', '133'],
+    ].map(([codigoItinerario, descricaolinha]) => ({
+      codigoItinerario,
+      descricaoItinerario: codigoItinerario,
+      descricaolinha,
+    }));
+
+    const doNumero = (n: string) =>
+      filtrarPorLinha(brutos, n).map((b) => b.descricaolinha);
+    expect(doNumero('33')).toEqual(['O-33', 'O-33 Extra']);
+    expect(doNumero('33a')).toEqual(['O-33A']);
+    expect(doNumero('133')).toEqual(['133']);
+
+    const client = {
+      pesquisarRotas: vi.fn(async () => brutos),
+      paradasEspecifica: vi.fn(async () => ({})),
+    };
+    const service = new LinhasService(client as unknown as NubusClient);
+    const linha = await service.obter('33B');
+    expect(linha.itinerarios.map((i) => i.codigo)).toEqual([
+      'CMPO-33BPlanalto / Lagoa Seca',
+    ]);
   });
 });
