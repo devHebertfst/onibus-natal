@@ -169,4 +169,24 @@ describe('LinhasService', () => {
       'CMPO-33BPlanalto / Lagoa Seca',
     ]);
   });
+
+  it('ignora zeros à esquerda no número da linha', () => {
+    const brutos = [
+      ['COM098Abel Cabral / Alecrim', '098'],
+      ['CON598Guarapes/Rodoviária', '598'],
+      ['REU07Alvorada/Midway', '07'],
+      ['REUN-07Alvorada / Cidade Jardim', 'N-07'],
+      ['REU78Via Ponte Newton Navarro', '78'],
+    ].map(([codigoItinerario, descricaolinha]) => ({
+      codigoItinerario,
+      descricaoItinerario: codigoItinerario,
+      descricaolinha,
+    }));
+    const doNumero = (n: string) =>
+      filtrarPorLinha(brutos, n).map((b) => b.descricaolinha);
+    expect(doNumero('98')).toEqual(['098']);
+    expect(doNumero('098')).toEqual(['098']);
+    expect(doNumero('7')).toEqual(['07', 'N-07']);
+    expect(doNumero('0')).toEqual([]);
+  });
 });

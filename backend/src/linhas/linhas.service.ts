@@ -306,20 +306,24 @@ export class LinhasService {
 
 /**
  * Mantém só os itinerários da linha pedida: "O-33" e "O-33 Extra" são da 33;
- * "O-33A" e "133" não. Se a API não informar `descricaolinha`, não filtra.
+ * "O-33A" e "133" não. Zeros à esquerda não contam: "98" acha "098" e vice-
+ * versa. Se a API não informar `descricaolinha`, não filtra.
  */
 export function filtrarPorLinha(
   brutos: NubusItinerario[],
   numero: string,
 ): NubusItinerario[] {
+  const normalizar = (n: string) => n.toUpperCase().replace(/^0+(?=\d)/, '');
   const numeroDe = (b: NubusItinerario) =>
-    b.descricaolinha
-      ?.trim()
-      .replace(/^[A-Za-z]+-/, '')
-      .split(/\s+/)[0]
-      .toUpperCase();
+    normalizar(
+      (b.descricaolinha ?? '')
+        .trim()
+        .replace(/^[A-Za-z]+-/, '')
+        .split(/\s+/)[0],
+    );
   if (brutos.some((b) => !b.descricaolinha)) return brutos;
-  return brutos.filter((b) => numeroDe(b) === numero.toUpperCase());
+  const alvo = normalizar(numero);
+  return brutos.filter((b) => numeroDe(b) === alvo);
 }
 
 /** Executa `fn` sobre os itens com no máximo `limite` chamadas simultâneas. */
