@@ -10,11 +10,30 @@ export interface SentidoNaPlaca {
   /** Rumo do traçado na parada (graus, 0 = norte); null se desconhecido. */
   rumo: number | null;
   previsoes: Previsao[];
+  /** Por que o ônibus seguido mudou ("o ônibus X já passou"), por alguns segundos. */
+  aviso: string | null;
+}
+
+const RUMOS = [
+  ['N', 'norte'],
+  ['NE', 'nordeste'],
+  ['L', 'leste'],
+  ['SE', 'sudeste'],
+  ['S', 'sul'],
+  ['SO', 'sudoeste'],
+  ['O', 'oeste'],
+  ['NO', 'noroeste'],
+] as const;
+
+/** 200° → ['SO', 'sudoeste']. */
+function rumoTexto(graus: number): readonly [string, string] {
+  return RUMOS[Math.round((((graus % 360) + 360) % 360) / 45) % 8];
 }
 
 /**
  * Placa de chegada: o ponto do passageiro como uma placa de indicação —
  * verde, filete branco, uma linha por sentido com seta, destino e tempo.
+ * O conteúdo com o atributo `acao` vai no cabeçalho, ao lado do nome.
  */
 @Component({
   selector: 'app-placa',
@@ -31,15 +50,19 @@ export class Placa {
   protected readonly linhas = computed(() =>
     this.sentidos().map((s) => {
       const [proximo, ...depois] = s.previsoes;
+      const rumo = s.rumo === null ? null : rumoTexto(s.rumo);
       return {
         ...s,
         // Quebra de linha só entre os nomes ("Ribeira / Cidade Nova"), nunca no meio de um.
         destino: s.destino
           .split(' / ')
-          .map((parte) => parte.replace(/ /g, '\u00a0'))
-          .join('\u00a0/ '),
+          .map((parte) => parte.replace(/ /g, ' '))
+          .join(' / '),
+        rumoCurto: rumo?.[0] ?? null,
+        rumoLongo: rumo ? `indo para o ${rumo[1]}` : null,
         proximo: proximo
           ? {
+              onibus: proximo.onibus,
               chegando: proximo.minutos < 1,
               minutos: Math.max(1, Math.round(proximo.minutos)),
               detalhe: `${

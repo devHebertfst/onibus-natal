@@ -82,7 +82,7 @@ typography:
     fontFeature: "tnum"
   label-mapa:
     fontFamily: "'Overpass Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
-    fontSize: "12px"
+    fontSize: "13px"
     fontWeight: 700
     lineHeight: 1
     fontFeature: "tnum"
@@ -277,7 +277,7 @@ O mapa-base é emprestado: tiles Esri Light Gray (dia) e Dark Gray (noite), sem 
 - **Title** (700–800, 16px, 1.25): nome da parada nas listas, títulos de seção ("Ônibus agora", "Favoritas"), botão principal, número da linha no escudo.
 - **Body** (400, 15px, 1.4–1.45): avisos, dicas, resumo da linha, botões (700), toast (600). Tamanho-base da página: 16px.
 - **Label** (700, 14px, 1.35, tabular): estado da conexão e idade do dado no topo, sentidos nas listas, detalhe da placa (peso normal, placa-texto-2), nota de estimativa. Rodapé e número do ônibus a 13px.
-- **Label do mapa** (700, 12px, 1, tabular): rótulo ao lado do marcador de ônibus.
+- **Label do mapa** (700, 13px, 1, tabular): rótulo ao lado do marcador de ônibus seguido ou selecionado.
 
 ### Named Rules
 **A Regra dos Algarismos Tabulares.** Todo número que muda na tela (minutos, velocidade, idade do dado, distância, número da linha e do ônibus) usa `font-variant-numeric: tabular-nums`, para não tremer a cada atualização.
@@ -326,9 +326,10 @@ Bordas de controles são grossas (2px) e retas; ícones são traços de 2px com 
 ### Placa de chegada (assinatura)
 A peça que define o produto: uma placa de indicação com o ponto do passageiro e, para cada sentido, quanto falta.
 - **Forma:** fundo verde, cantos de 8px, filete branco interno, Sombra de Placa, padding 14px 16px 10px.
-- **Cabeçalho:** nome da parada a 15px/700, com o pino branco quando é "meu ponto".
-- **Linhas:** grade de três colunas (seta de 34px, destino, tempo), separadas por régua branca de 2px a 55% de opacidade. A seta gira para o rumo real do sentido (transição de 0,4s); sem rumo, fica a 60%.
-- **Destino:** quadradinho do sentido com filete branco + nome a 20px/800; abaixo, detalhe a 14px em placa-texto-2 ("a 3 paradas", próximo ônibus).
+- **Cabeçalho:** nome da parada a 15px/700, com o pino branco quando é "meu ponto". À direita, o botão "Trocar" (44px, filete branco de 2px sobre o verde, cantos de 4px), que volta à escolha do ponto.
+- **Linhas:** grade de três colunas (seta de 34px, destino, tempo), separadas por régua branca de 2px a 55% de opacidade. A seta gira para o rumo real do sentido (transição de 0,4s); sem rumo, fica a 60%. Sob a seta, a letra do rumo (N, NE, L, SE, S, SO, O, NO) a 13px/800, como numa rosa dos ventos; o leitor de tela ouve "indo para o sudeste".
+- **Destino:** quadradinho do sentido com filete branco + nome a 20px/800; abaixo, detalhes a 14px em placa-texto-2, um por linha: "a 3 paradas daqui (1,2 km)", "ônibus nº CDN70025" (o ônibus que a placa está seguindo) e "depois: 8 e 18 min".
+- **Ônibus seguido:** a placa segue um ônibus por sentido. Se ele some da conta (passou do ponto, mudou de sentido, perdeu o GPS), o número muda e uma plaquinha amarela com preto diz por quê ("O ônibus nº X já passou por aqui.") durante 45 s; nunca troca o número em silêncio.
 - **Tempo:** minutos a 40px/800 + "min" a 16px/700. Quando o ônibus está chegando, vira uma plaquinha invertida (branca, letra verde, cantos de 4px) com "chegando". Sem ônibus vindo, um travessão a 28px e 70%.
 - **Movimento:** o minuto novo sobe no lugar do antigo (animação `troca`, 0,45s, deslocamento de 40% com recorte), como letreiro. É o único movimento da placa.
 
@@ -351,7 +352,7 @@ A peça que define o produto: uma placa de indicação com o ponto do passageiro
 - **Expandir ("Todas as paradas"):** faixa de 48px em chão-2, sem borda, com chevron que gira 180° ao abrir.
 
 ### Chips
-- **Linha favorita:** botão de 48px de altura e no mínimo 56px de largura, borda de 2px em asfalto, número a 20px/800 tabular.
+- **Linha favorita:** botão de 48px de altura e no mínimo 56px de largura, borda de 2px em asfalto, número a 20px/800 tabular; abaixo, os destinos da linha a 13px/600 em texto-2 ("Planalto · Praia do Meio · Mae Luiza"), com reticências. Recentes não repetem as favoritas.
 - **Linha recente:** mesma forma, borda em Contorno Forte e peso 700.
 
 ### Listas
@@ -362,22 +363,23 @@ A peça que define o produto: uma placa de indicação com o ponto do passageiro
 ### Avisos
 - **Erro:** placa de regulamentação: borda vermelha de 2px, fundo reg-fundo, anel vermelho à frente, texto em asfalto, 15px/1.4.
 - **Advertência:** amarelo com preto, cantos de 8px (aviso) ou 4px (nota sob a placa).
-- **Nota de estimativa:** 14px em texto-3, logo abaixo da placa ("Tempo estimado pela distância até o ponto, a ~18 km/h").
+- **Nota de estimativa:** 14px em texto-3, logo abaixo da placa, começando pela idade do dado em texto-2/700 ("Posições de há 12 s. Tempo estimado pela distância até o ponto, a ~18 km/h").
+- **Legenda ("Como ler o mapa"):** `details` fechado por padrão, com chevron como o botão Expandir; explica as cores de sentido, o cinza sem rota, a seta do marcador, o rótulo verde, a letra do rumo e "medindo…". Os atalhos de teclado moram aqui (só com `hover: hover` e `pointer: fine`); nada de significado fica só em `title`.
 - **Toast:** invertido (asfalto com letra no tom do chão), 15px/600, centralizado; no celular sobe acima da gaveta.
 
 ### Gaveta (celular)
-- **Alça:** área de 40px, traço de 44×5px em Contorno Forte; arrasta por ponteiro e alterna as alturas com Enter/Espaço.
+- **Alça:** área de 44px, traço de 44×5px em Contorno Forte; arrasta por ponteiro e alterna as alturas com clique, Enter ou Espaço (o clique que segue um toque é ignorado).
+- **Frota:** recolhida sob o título "Ônibus que vêm pra cá (N)" quando há placa, aberta sem ela; ordenada pelo tempo até o ponto, com "chega em X min" ao lado do número.
 - **Movimento:** `transform` em 0,32s com cubic-bezier(0.22, 1, 0.36, 1); os controles do mapa acompanham na mesma curva.
 
 ### Marcadores do mapa
-- **Ônibus:** quadrado na cor do sentido com seta branca no rumo e plaquinha de rótulo ao lado (chão, borda de 1px em Contorno Forte, 12px/700 tabular: número e velocidade). Selecionado: cresce 1,2×, ganha anel de asfalto de 3px e o rótulo se inverte.
-- **Parada:** alvo de 44px com desenho pequeno no centro; ativa, mini placa verde com filete.
+- **Ônibus:** quadrado na cor do sentido com seta branca no rumo. Sem rótulo, para não se atropelarem; o ônibus seguido pela placa ganha plaquinha verde com o tempo ("6 min", "chegando") e o selecionado, plaquinha invertida com número e velocidade. Selecionado: cresce 1,2× e ganha anel de asfalto de 3px. A cor vem da mesma regra da lista: sentido inferido ou, sem ele, o único itinerário da API.
+- **Parada:** alvo de 44px com desenho pequeno no centro; abaixo do zoom 15 o desenho vira pontinho de 8px, para não cobrir o traçado. Ativa, mini placa verde com filete.
 - **Passageiro:** ponto de 18px em asfalto com borda branca de 3px.
-- **Traçado:** linha de 4px na cor do sentido sobre contorno de 8px na cor do chão, como mapa de rota impresso.
+- **Traçado:** linha cheia na cor do sentido sobre contorno 4px mais largo na cor do chão, como mapa de rota impresso. O primeiro sentido tem 8px e o segundo 3,5px por dentro dele (os demais, 2,5px): no tronco comum de ida e volta aparecem as duas cores.
 
 ### Limites conhecidos
 - O mapa-base (Esri Light/Dark Gray) é de terceiros e não segue as cores do sistema.
-- Os rótulos dos ônibus se sobrepõem quando vários veículos estão juntos; não há tratamento de colisão.
 - O arrasto da gaveta e a pinça só foram testados em Chromium (toque sintetizado); Safari e aparelho físico não foram testados.
 - O marcador de ônibus tem 28px, abaixo do alvo de 44px; a lista da frota (itens de 56px, com teclado) é o caminho acessível equivalente.
 

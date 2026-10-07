@@ -1,35 +1,50 @@
 <section class="placa" [attr.aria-labelledby]="idPlaca()">
-  <h2 class="nome" [id]="idPlaca()">
-    @if (salvo()) {
-      <svg class="pino" viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12 21s-6-5.3-6-11a6 6 0 0 1 12 0c0 5.7-6 11-6 11Z" />
-        <circle cx="12" cy="10" r="2.2" />
-      </svg>
-      <span class="visualmente-oculto">Meu ponto:</span>
-    }
-    {{ nome() }}
-  </h2>
+  <div class="cabeca">
+    <h2 class="nome" [id]="idPlaca()">
+      @if (salvo()) {
+        <svg class="pino" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 21s-6-5.3-6-11a6 6 0 0 1 12 0c0 5.7-6 11-6 11Z" />
+          <circle cx="12" cy="10" r="2.2" />
+        </svg>
+        <span class="visualmente-oculto">Meu ponto:</span>
+      }
+      {{ nome() }}
+    </h2>
+    <ng-content select="[acao]" />
+  </div>
   <ul>
     @for (l of linhas(); track l.itinerario) {
       <li [style.--cor]="l.cor">
-        <svg
-          class="seta"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-          [class.sem-rumo]="l.rumo === null"
-          [style.transform]="l.rumo === null ? null : 'rotate(' + l.rumo + 'deg)'"
-        >
-          <path d="M12 3v18M5 10l7-7 7 7" />
-        </svg>
+        <div class="rumo">
+          <svg
+            class="seta"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            [class.sem-rumo]="l.rumo === null"
+            [style.transform]="l.rumo === null ? null : 'rotate(' + l.rumo + 'deg)'"
+          >
+            <path d="M12 3v18M5 10l7-7 7 7" />
+          </svg>
+          @if (l.rumoCurto) {
+            <span class="rumo-curto" aria-hidden="true">{{ l.rumoCurto }}</span>
+          }
+        </div>
         <div class="destino">
           <strong><span class="cor" aria-hidden="true"></span>{{ l.destino }}</strong>
+          @if (l.rumoLongo) {
+            <span class="visualmente-oculto">, {{ l.rumoLongo }}</span>
+          }
           @if (l.proximo; as p) {
             <span class="detalhe">{{ p.detalhe }}</span>
+            <span class="detalhe">ônibus nº {{ p.onibus }}</span>
             @if (l.depois) {
               <span class="detalhe">{{ l.depois }}</span>
             }
           } @else {
             <span class="detalhe">Nenhum ônibus vindo agora neste sentido</span>
+          }
+          @if (l.aviso; as aviso) {
+            <span class="aviso">{{ aviso }}</span>
           }
         </div>
         <div class="tempo">

@@ -17,8 +17,6 @@
     border: none;
 
     &.selecionado {
-      z-index: 2000 !important;
-
       .corpo {
         transform: scale(1.2);
         box-shadow:
@@ -35,6 +33,18 @@
 
     &.com-rumo .seta {
       opacity: 1;
+    }
+
+    /* Ônibus que a placa está seguindo: rótulo verde de placa com o tempo. */
+    &.seguido .rotulo {
+      display: block;
+      border-color: var(--placa);
+      background: var(--placa);
+      color: var(--placa-texto);
+    }
+
+    &.selecionado .rotulo {
+      display: block;
     }
   }
 
@@ -82,6 +92,7 @@
   }
 
   .rotulo {
+    display: none;
     position: absolute;
     left: 18px;
     top: -12px;
@@ -91,7 +102,7 @@
     background: var(--chao);
     color: var(--texto);
     font:
-      700 12px/1 var(--fonte),
+      700 13px/1 var(--fonte),
       sans-serif;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -127,14 +138,18 @@
     border: 3px solid var(--texto);
     border-radius: 50%;
     background: var(--chao);
-    transition:
-      width 0.15s,
-      height 0.15s;
+    transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .ponto-icone:hover .ponto-mapa {
-    width: 18px;
-    height: 18px;
+    transform: scale(1.3);
+  }
+
+  /* Mapa afastado: a parada vira um pontinho sobre o traçado, sem cobrir a cor da rota. */
+  .longe .ponto-icone:not(.ativo) .ponto-mapa {
+    width: 8px;
+    height: 8px;
+    border-width: 2px;
   }
 
   /* ---- passageiro ---- */

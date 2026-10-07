@@ -9,6 +9,8 @@ export class FavoritasService {
   readonly recentes = signal<string[]>(lerLista('onibus-natal:recentes'));
   /** Linha → chave do ponto salvo (`itinerario|codigo`). */
   readonly meusPontos = signal<Record<string, string>>(lerMapa('onibus-natal:meus-pontos'));
+  /** Linha → destinos ("Planalto · Praia do Meio"), para o chip dizer aonde a linha vai. */
+  readonly destinos = signal<Record<string, string>>(lerMapa('onibus-natal:destinos'));
 
   eFavorita(numero: string): boolean {
     return this.favoritas().includes(numero);
@@ -24,6 +26,13 @@ export class FavoritasService {
   registrarRecente(numero: string): void {
     this.recentes.update((l) => [numero, ...l.filter((n) => n !== numero)].slice(0, MAX_RECENTES));
     gravar('onibus-natal:recentes', this.recentes());
+  }
+
+  /** Guarda os destinos da linha quando ela abre (só muda se mudaram). */
+  registrarDestinos(numero: string, destinos: string): void {
+    if (!destinos || this.destinos()[numero] === destinos) return;
+    this.destinos.update((m) => ({ ...m, [numero]: destinos }));
+    gravar('onibus-natal:destinos', this.destinos());
   }
 
   meuPonto(numero: string): string | null {
