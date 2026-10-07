@@ -21,6 +21,6 @@ npm run test:e2e      # teste HTTP com a API externa simulada
 | `NUBUS_CIDADE`     | `ntl`                                          | Cidade                                      |
 | `POLL_INTERVAL_MS` | `15000`                                        | Intervalo do loop de atualização            |
 | `SSE_PING_MS`      | `20000`                                        | Intervalo do `: ping` no stream SSE         |
-| `LINHA_INATIVA_MS` | `300000`                                       | Para de acompanhar linha sem acessos        |
+| `LINHA_INATIVA_MS` | `1800000`                                      | Para de acompanhar linha sem acessos        |
 | `MAX_LINHAS`       | `40`                                           | Máximo de linhas acompanhadas               |
 | `CORS_ORIGIN`      | (qualquer)                                     | Origens permitidas, separadas por vírgula   |

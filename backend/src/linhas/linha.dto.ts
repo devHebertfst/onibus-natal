@@ -24,8 +24,11 @@ export interface OnibusDto {
   id: string;
   lat: number;
   lng: number;
-  /** Média móvel de ~90s; 0 se não se move há mais de 60s. */
-  velocidadeKmh: number;
+  /**
+   * Média móvel de ~90s; 0 se não se move há mais de 60s; `null` enquanto o
+   * backend ainda não viu duas posições diferentes (linha recém-acompanhada).
+   */
+  velocidadeKmh: number | null;
   /** Itinerários em que o veículo apareceu (pode ser mais de um). */
   itinerarios: string[];
   /** Quando o backend viu esta posição pela 1ª vez (ISO 8601). */

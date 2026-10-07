@@ -137,7 +137,9 @@ curl -N http://localhost:3000/api/linhas/33/stream
 (movimentos < 10 m são ruído ou o mesmo GPS repetido). A velocidade é a soma
 das distâncias Haversine entre posições consecutivas nos últimos ~90s,
 dividida pelo tempo decorrido. Sem posição nova há mais de 60s, o valor é
-0 km/h. Saltos acima de 110 km/h reiniciam o histórico, porque são erro de
+0 km/h. Enquanto houver uma só posição (linha recém-acompanhada; o GPS da
+Nubus muda a cada ~30s), a velocidade vai como `null` ("desconhecida"), e
+não 0. Saltos acima de 110 km/h reiniciam o histórico, porque são erro de
 GPS ou troca de linha.
 
 **Dead reckoning (frontend).** Cada traçado vira uma polilinha em metros, e a
@@ -152,13 +154,23 @@ posição do ônibus vira um número `s` (metros desde o início do traçado).
   itinerário em que `s` aumentou. Na primeira posição, se houver ambiguidade
   (ida e volta na mesma rua), o ônibus fica parado na posição real até a
   próxima leitura.
+- Velocidade desconhecida (`null`): se o sentido já for conhecido, o ônibus
+  anda a 18 km/h (média urbana) até chegar a velocidade real, com a mesma
+  correção suave. Perto das pontas do traçado (250 m, terminais) não estima.
+  A lista mostra "calculando…" em vez de "parado".
 - O horário da posição é o momento em que o backend a viu mudar
   (`posicaoDesde`), convertido para o relógio do navegador.
 
 **Proteção da API de origem.** As consultas por cliente nunca chegam à API:
 requisições simultâneas compartilham a mesma consulta. O backend acompanha
-no máximo 40 linhas (configurável), com até 4 em paralelo. A lista de
-itinerários é cacheada por 6h.
+no máximo 40 linhas (configurável), com até 4 em paralelo. Com o limite
+atingido, a linha sem conexões há mais tempo sem acesso dá lugar à nova. A
+lista de itinerários é cacheada por 6h.
+
+**Linhas "aquecidas".** Uma linha continua sendo acompanhada por 30 min
+depois do último acesso, para quem abri-la em seguida já receber velocidade
+e sentido prontos. Sem ninguém olhando, ela é atualizada a cada ~30s (o
+ritmo do GPS) em vez de 15s. "098" e "98" são a mesma entrada.
 
 ## Formato real da API (conferido)
 

@@ -435,6 +435,11 @@ ul {
     &.parado {
       color: var(--texto-3);
     }
+
+    &.calculando {
+      color: var(--texto-3);
+      animation: piscar 1.6s ease-in-out infinite;
+    }
   }
 }
 

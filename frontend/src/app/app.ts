@@ -85,7 +85,12 @@ export class App {
   });
 
   protected readonly emMovimento = computed(
-    () => this.onibus().filter((o) => o.velocidadeKmh > 0).length,
+    () => this.onibus().filter((o) => (o.velocidadeKmh ?? 0) > 0).length,
+  );
+
+  /** Ônibus cuja velocidade o backend ainda está calculando (linha recém-aberta). */
+  protected readonly calculando = computed(
+    () => this.onibus().filter((o) => o.velocidadeKmh === null).length,
   );
 
   protected readonly idadeS = computed(() => {

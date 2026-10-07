@@ -72,6 +72,28 @@ describe('OnibusAnimado', () => {
     expect(anterior).toBeCloseTo(450, -1);
   });
 
+  it('com velocidade desconhecida e sentido conhecido, anda na velocidade comercial', () => {
+    const o = new OnibusAnimado('1');
+    o.atualizar(em(500), null, 0, [ida], 0); // só um itinerário: sentido conhecido
+    expect(o.rota?.codigo).toBe('ida');
+    o.quadro(0);
+    const q = o.quadro(10_000)!;
+    // 10 s a 18 km/h (5 m/s): ~50 m
+    expect(ida.projetar(q.lat, q.lng).s).toBeCloseTo(550, 0);
+  });
+
+  it('com velocidade desconhecida, não estima perto do terminal nem quando parado é certo', () => {
+    const noTerminal = new OnibusAnimado('1');
+    noTerminal.atualizar(em(100), null, 0, [ida], 0);
+    noTerminal.quadro(0);
+    expect(ida.projetar(...latLng(noTerminal.quadro(10_000)!)).s).toBeCloseTo(100, 0);
+
+    const parado = new OnibusAnimado('2');
+    parado.atualizar(em(500), 0, 0, [ida], 0);
+    parado.quadro(0);
+    expect(ida.projetar(...latLng(parado.quadro(10_000)!)).s).toBeCloseTo(500, 0);
+  });
+
   it('não extrapola indefinidamente sem posição nova', () => {
     const o = new OnibusAnimado('1');
     o.atualizar(em(0), kmh36, 0, [ida], 0);

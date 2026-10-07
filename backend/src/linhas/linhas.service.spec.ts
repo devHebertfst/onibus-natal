@@ -107,7 +107,7 @@ describe('LinhasService', () => {
       await vi.waitFor(() => expect(recebidos).toHaveLength(1));
 
       // Sem nenhum GET, o loop não descarta a linha enquanto há inscrito.
-      vi.advanceTimersByTime(10 * 60_000);
+      vi.advanceTimersByTime(31 * 60_000);
       await service.atualizarTodas();
       expect(recebidos).toHaveLength(2);
       expect(service.acompanhadas()).toEqual(['33']);
@@ -122,7 +122,7 @@ describe('LinhasService', () => {
       expect(recebidos[2].desatualizado).toBe(true);
 
       sub.unsubscribe();
-      vi.advanceTimersByTime(10 * 60_000);
+      vi.advanceTimersByTime(31 * 60_000);
       await service.atualizarTodas();
       expect(service.acompanhadas()).toEqual([]);
     } finally {
@@ -188,5 +188,52 @@ describe('LinhasService', () => {
     expect(doNumero('098')).toEqual(['098']);
     expect(doNumero('7')).toEqual(['07', 'N-07']);
     expect(doNumero('0')).toEqual([]);
+  });
+
+  it('"098" e "98" compartilham a mesma entrada no cache', async () => {
+    const client = fakeClient(respostas);
+    client.pesquisarRotas.mockImplementation(async () => [
+      { codigoItinerario: 101, descricaoItinerario: 'IDA' },
+    ]);
+    const service = new LinhasService(client as unknown as NubusClient);
+    await service.obter('098');
+    const linha = await service.obter('98');
+    expect(linha.numero).toBe('98');
+    expect(service.acompanhadas()).toEqual(['98']);
+    expect(client.pesquisarRotas).toHaveBeenCalledTimes(1);
+  });
+
+  it('na 1ª leitura a velocidade é desconhecida (null), não 0', async () => {
+    const service = new LinhasService(
+      fakeClient(respostas) as unknown as NubusClient,
+    );
+    const linha = await service.obter('33');
+    expect(linha.onibus.map((o) => o.velocidadeKmh)).toEqual([null, null]);
+  });
+
+  it('com o limite atingido, troca a linha menos usada em vez de recusar', async () => {
+    const client = {
+      pesquisarRotas: vi.fn(async (n: string) => [
+        { codigoItinerario: `IT-${n}`, descricaoItinerario: n },
+      ]),
+      paradasEspecifica: vi.fn(async () => ({})),
+    };
+    const service = new LinhasService(client as unknown as NubusClient);
+    vi.useFakeTimers();
+    try {
+      for (let i = 1; i <= 40; i++) {
+        await service.obter(String(i));
+        vi.advanceTimersByTime(1000);
+      }
+      await service.obter('1'); // a 1 volta a ser usada; a 2 vira a mais antiga
+      await service.obter('41');
+      const acompanhadas = service.acompanhadas();
+      expect(acompanhadas).toHaveLength(40);
+      expect(acompanhadas).toContain('1');
+      expect(acompanhadas).toContain('41');
+      expect(acompanhadas).not.toContain('2');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

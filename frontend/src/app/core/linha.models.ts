@@ -20,7 +20,8 @@ export interface Onibus {
   id: string;
   lat: number;
   lng: number;
-  velocidadeKmh: number;
+  /** null = backend ainda não viu duas posições (velocidade desconhecida). */
+  velocidadeKmh: number | null;
   itinerarios: string[];
   posicaoDesde: string;
 }

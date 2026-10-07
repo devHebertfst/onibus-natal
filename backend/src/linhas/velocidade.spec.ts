@@ -56,9 +56,19 @@ describe('RastreadorVelocidade', () => {
     r.registrar('A', norte(0), 0);
     r.registrar('A', norte(200), 20_000);
     r.registrar('A', norte(5_000), 40_000); // 240 m/s
-    expect(r.velocidadeKmh('A', 40_000)).toBe(0);
+    expect(r.velocidadeKmh('A', 40_000)).toBeNull();
     r.registrar('A', norte(5_200), 60_000);
     expect(r.velocidadeKmh('A', 60_000)).toBeCloseTo(36, 0);
+  });
+
+  it('com uma só posição, a velocidade é desconhecida até completar 60s parado', () => {
+    const r = new RastreadorVelocidade();
+    expect(r.velocidadeKmh('A', 0)).toBeNull();
+    r.registrar('A', norte(0), 0);
+    expect(r.velocidadeKmh('A', 0)).toBeNull();
+    r.registrar('A', norte(0), 30_000); // GPS repetido
+    expect(r.velocidadeKmh('A', 30_000)).toBeNull();
+    expect(r.velocidadeKmh('A', 61_000)).toBe(0);
   });
 
   it('esquece veículos que sumiram', () => {

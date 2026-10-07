@@ -12,6 +12,14 @@ const TAU_CORRECAO_S = 2.5;
 const SALTO_MAX_M = 400;
 /** Duração da transição visual quando o ônibus "pula" (ms). */
 const TRANSICAO_MS = 900;
+/**
+ * Velocidade média de um ônibus urbano contando paradas, semáforos e
+ * trânsito. Usada quando a velocidade real ainda é desconhecida e na
+ * previsão de chegada.
+ */
+export const VELOCIDADE_COMERCIAL_KMH = 18;
+/** Perto das pontas do traçado (terminais) não estima: o ônibus costuma esperar ali. */
+const MARGEM_TERMINAL_M = 250;
 
 export interface Quadro {
   lat: number;
@@ -49,6 +57,8 @@ interface Opcao {
  */
 export class OnibusAnimado {
   velocidadeMs = 0;
+  /** false enquanto o backend não souber a velocidade (linha recém-aberta). */
+  velocidadeConhecida = true;
   rota: Rota | null = null;
 
   /** Última posição real (GPS). */
@@ -66,17 +76,20 @@ export class OnibusAnimado {
 
   /**
    * Nova leitura vinda do backend.
+   * @param velocidadeKmh null = desconhecida: se o sentido já for conhecido,
+   *   anda na velocidade comercial até a real chegar (a correção é suave).
    * @param tFix instante (relógio do navegador) em que a posição foi observada.
    * @param candidatas rotas em que o ônibus pode estar (itinerários da linha).
    */
   atualizar(
     pos: [number, number],
-    velocidadeKmh: number,
+    velocidadeKmh: number | null,
     tFix: number,
     candidatas: Rota[],
     agora: number,
   ): void {
-    this.velocidadeMs = velocidadeKmh / 3.6;
+    this.velocidadeConhecida = velocidadeKmh !== null;
+    this.velocidadeMs = (velocidadeKmh ?? 0) / 3.6;
 
     const anterior = this.fix;
     if (anterior && distanciaM(anterior, pos) < MOVIMENTO_MIN_M) {
@@ -137,7 +150,7 @@ export class OnibusAnimado {
       const alvo = this.alvo(agora);
       this.erro *= Math.exp(-dt / TAU_CORRECAO_S);
       let s = alvo + this.erro;
-      if (this.sExibido !== null && s < this.sExibido && this.velocidadeMs > 0.5) {
+      if (this.sExibido !== null && s < this.sExibido && this.velocidadeEfetiva() > 0.5) {
         // Em movimento não anda de ré: espera o alvo alcançar.
         s = this.sExibido;
         this.erro = s - alvo;
@@ -168,7 +181,16 @@ export class OnibusAnimado {
   private alvo(agora: number): number {
     const rota = this.rota!;
     const dt = Math.max(0, Math.min(EXTRAPOLACAO_MAX_S, (agora - this.tFix) / 1000));
-    return Math.min(rota.comprimento, this.sFix + this.velocidadeMs * dt);
+    return Math.min(rota.comprimento, this.sFix + this.velocidadeEfetiva() * dt);
+  }
+
+  /** Velocidade usada na extrapolação (m/s): a real ou, se desconhecida, a estimada. */
+  private velocidadeEfetiva(): number {
+    if (this.velocidadeConhecida) return this.velocidadeMs;
+    const rota = this.rota;
+    if (!rota || this.sFix < MARGEM_TERMINAL_M || rota.comprimento - this.sFix < MARGEM_TERMINAL_M)
+      return 0;
+    return VELOCIDADE_COMERCIAL_KMH / 3.6;
   }
 
   private iniciarTransicao(agora: number): void {

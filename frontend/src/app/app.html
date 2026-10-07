@@ -151,7 +151,11 @@
           <div class="numero-linha">{{ l.numero }}</div>
           <div class="resumo">
             <strong>{{ onibus().length }} ônibus</strong>
-            <span>{{ emMovimento() }} em movimento</span>
+            @if (calculando() > 0) {
+              <span>calculando velocidades… (GPS a cada ~30 s)</span>
+            } @else {
+              <span>{{ emMovimento() }} em movimento</span>
+            }
           </div>
           <button
             type="button"
@@ -191,7 +195,11 @@
                   <span class="id">{{ o.id }}</span>
                   <span class="sentido">{{ o.sentido }}</span>
                 </span>
-                @if (o.paradoMin === null) {
+                @if (o.velocidadeKmh === null) {
+                  <span class="vel calculando" title="Aguardando a próxima posição do GPS"
+                    >calculando…</span
+                  >
+                } @else if (o.paradoMin === null) {
                   <span class="vel"
                     ><b>{{ o.velocidadeKmh }}</b> km/h</span
                   >

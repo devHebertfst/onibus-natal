@@ -98,14 +98,21 @@ export class LinhasService {
 
   /** Valida o número e passa a acompanhar a linha (se ainda não estiver). */
   private registrar(numeroBruto: string): LinhaAcompanhada {
-    const numero = numeroBruto.trim().toUpperCase();
+    // "098" e "98" são a mesma linha: uma só entrada no cache.
+    const numero = numeroBruto
+      .trim()
+      .toUpperCase()
+      .replace(/^0+(?=\d)/, '');
     if (!NUMERO_VALIDO.test(numero)) {
       throw new BadRequestException('Número de linha inválido');
     }
 
     let linha = this.linhas.get(numero);
     if (!linha) {
-      if (this.linhas.size >= config.maxLinhasAcompanhadas) {
+      if (
+        this.linhas.size >= config.maxLinhasAcompanhadas &&
+        !this.liberarVaga()
+      ) {
         throw new ServiceUnavailableException(
           'Muitas linhas acompanhadas no momento, tente novamente em instantes',
         );
@@ -151,9 +158,8 @@ export class LinhasService {
           );
         } else if (
           !linha.snapshotEm ||
-          agora - linha.snapshotEm >= config.pollIntervalMs / 2
+          agora - linha.snapshotEm >= this.intervaloDe(linha, agora)
         ) {
-          // (pula linhas que acabaram de ser buscadas por um GET)
           pendentes.push(linha);
         }
       }
@@ -175,6 +181,35 @@ export class LinhasService {
     } finally {
       this.loopRodando = false;
     }
+  }
+
+  /**
+   * Quanto esperar desde o último snapshot para atualizar de novo. Linha sendo
+   * vista: todo ciclo (a metade do intervalo pula só as que acabaram de ser
+   * buscadas por um GET). Linha só "aquecida", sem ninguém olhando: a cada 2
+   * ciclos (~30s, o ritmo do GPS), o bastante para manter velocidade e
+   * sentido prontos sem dobrar a carga na API de origem.
+   */
+  private intervaloDe(linha: LinhaAcompanhada, agora: number): number {
+    const emUso =
+      linha.assinantes > 0 ||
+      agora - linha.ultimoAcesso < 2 * config.pollIntervalMs;
+    return emUso ? config.pollIntervalMs / 2 : 1.5 * config.pollIntervalMs;
+  }
+
+  /** Com o limite atingido, descarta a linha sem conexões há mais tempo sem acesso. */
+  private liberarVaga(): boolean {
+    let candidata: LinhaAcompanhada | undefined;
+    for (const l of this.linhas.values()) {
+      if (l.assinantes > 0 || l.emAndamento) continue;
+      if (!candidata || l.ultimoAcesso < candidata.ultimoAcesso) candidata = l;
+    }
+    if (!candidata) return false;
+    this.linhas.delete(candidata.numero);
+    this.logger.log(
+      `Limite de linhas atingido: deixando de acompanhar a ${candidata.numero}`,
+    );
+    return true;
   }
 
   private atualizar(linha: LinhaAcompanhada): Promise<LinhaDto> {
@@ -247,7 +282,7 @@ export class LinhasService {
         id,
         lat: v.lat,
         lng: v.lng,
-        velocidadeKmh: Math.round(this.velocidade.velocidadeKmh(id, agora)),
+        velocidadeKmh: arredondar(this.velocidade.velocidadeKmh(id, agora)),
         itinerarios: v.itinerarios,
         posicaoDesde: new Date(
           this.velocidade.posicaoDesde(id) ?? agora,
@@ -324,6 +359,10 @@ export function filtrarPorLinha(
   if (brutos.some((b) => !b.descricaolinha)) return brutos;
   const alvo = normalizar(numero);
   return brutos.filter((b) => numeroDe(b) === alvo);
+}
+
+function arredondar(v: number | null): number | null {
+  return v === null ? null : Math.round(v);
 }
 
 /** Executa `fn` sobre os itens com no máximo `limite` chamadas simultâneas. */

@@ -1,13 +1,8 @@
 import { Parada } from '../../core/linha.models';
 import { Frota } from './frota';
+import { VELOCIDADE_COMERCIAL_KMH } from './onibus-animado';
 import { Rota } from './rota';
 
-/**
- * Velocidade média de um ônibus urbano contando paradas, semáforos e
- * trânsito. A velocidade instantânea engana (um ônibus a 40 km/h agora vai
- * parar no próximo ponto), então a previsão usa a média comercial.
- */
-export const VELOCIDADE_COMERCIAL_KMH = 18;
 /** Um pouco depois da parada ainda conta como "chegando" (ruído de GPS). */
 const TOLERANCIA_PASSOU_M = 30;
 

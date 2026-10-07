@@ -59,10 +59,17 @@ export class RastreadorVelocidade {
     this.podar(h, agora);
   }
 
-  /** Velocidade média na janela, em km/h. */
-  velocidadeKmh(id: string, agora: number): number {
+  /**
+   * Velocidade média na janela, em km/h, ou `null` se ainda não dá para saber:
+   * com uma só posição, o veículo pode estar parado ou o GPS (que atualiza a
+   * cada ~30s) apenas não mudou ainda. Só depois de `paradoAposMs` na mesma
+   * posição ele é considerado parado (0).
+   */
+  velocidadeKmh(id: string, agora: number): number | null {
     const fixes = this.veiculos.get(id)?.fixes;
-    if (!fixes || fixes.length < 2) return 0;
+    if (!fixes || fixes.length === 0) return null;
+    if (fixes.length < 2)
+      return agora - fixes[0].t > this.p.paradoAposMs ? 0 : null;
 
     const ultimo = fixes[fixes.length - 1];
     if (agora - ultimo.t > this.p.paradoAposMs) return 0;

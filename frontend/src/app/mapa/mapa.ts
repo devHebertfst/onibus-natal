@@ -219,7 +219,7 @@ export class Mapa {
       if (!this.marcadores.has(o.id))
         this.marcadores.set(o.id, this.criarMarcador(o.id, o.lat, o.lng));
       const m = this.marcadores.get(o.id)!;
-      m.texto = `${o.id} · ${o.velocidadeKmh} km/h`;
+      m.texto = o.velocidadeKmh === null ? o.id : `${o.id} · ${o.velocidadeKmh} km/h`;
       const rotulo = m.el?.querySelector('.rotulo');
       if (rotulo) rotulo.textContent = m.texto;
     }

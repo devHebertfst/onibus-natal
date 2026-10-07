@@ -27,7 +27,9 @@ export const config = {
   ssePingMs: num(process.env.SSE_PING_MS, 20_000),
 
   /** Uma linha deixa de ser acompanhada se ninguém a pedir por esse tempo. */
-  linhaInativaMs: num(process.env.LINHA_INATIVA_MS, 5 * 60_000),
+  // Tempo longo de propósito: quem abrir uma linha vista há pouco já recebe
+  // velocidade e sentido prontos, sem esperar o GPS mudar duas vezes.
+  linhaInativaMs: num(process.env.LINHA_INATIVA_MS, 30 * 60_000),
 
   /** Proteção da API de origem: máximo de linhas acompanhadas ao mesmo tempo. */
   maxLinhasAcompanhadas: num(process.env.MAX_LINHAS, 40),
