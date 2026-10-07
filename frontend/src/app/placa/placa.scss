@@ -1,0 +1,170 @@
+:host {
+  display: block;
+}
+
+/* Placa de indicação: fundo verde, filete branco interno, cantos de placa. */
+.placa {
+  position: relative;
+  padding: 14px 16px 10px;
+  border-radius: var(--raio);
+  background: var(--placa);
+  color: var(--placa-texto);
+  box-shadow: var(--sombra-placa);
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border: 2px solid var(--placa-texto);
+    border-radius: calc(var(--raio) - 3px);
+    pointer-events: none;
+  }
+}
+
+.nome {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 4px;
+  padding: 0 2px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.pino {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: var(--placa-texto);
+  stroke: var(--placa-texto);
+  stroke-width: 1.5;
+
+  circle {
+    fill: var(--placa);
+    stroke: none;
+  }
+}
+
+ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+li {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 2px;
+
+  & + li {
+    border-top: 2px solid rgb(255 255 255 / 55%);
+  }
+}
+
+.seta {
+  width: 34px;
+  height: 34px;
+  fill: none;
+  stroke: var(--placa-texto);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+
+  &.sem-rumo {
+    opacity: 0.6;
+  }
+}
+
+.destino {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  /* Quadrado na cor do sentido no mapa, com filete branco. */
+  .cor {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    margin: 0 8px 2px 2px;
+    border-radius: 2px;
+    background: var(--cor);
+    box-shadow: 0 0 0 2px var(--placa-texto);
+    vertical-align: middle;
+  }
+
+  strong {
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    /* Só se um nome sozinho não couber na largura. */
+    overflow-wrap: break-word;
+  }
+
+  .detalhe {
+    margin-top: 2px;
+    font-size: 14px;
+    line-height: 1.35;
+    color: var(--placa-texto-2);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.tempo {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  font-variant-numeric: tabular-nums;
+
+  b {
+    font-size: 40px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+
+  span {
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .minutos {
+    animation: troca 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Chegando: plaquinha invertida (branca, letra verde), como uma placa de destino. */
+  .chegando {
+    padding: 6px 8px;
+    border-radius: 4px;
+    background: var(--placa-texto);
+    color: var(--placa);
+    font-size: 17px;
+    letter-spacing: 0;
+    animation: troca 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .vazio {
+    font-size: 28px;
+    opacity: 0.7;
+  }
+}
+
+/* O minuto novo sobe no lugar do antigo, como um painel de letreiro. */
+@keyframes troca {
+  from {
+    opacity: 0;
+    transform: translateY(40%);
+    clip-path: inset(0 0 40% 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    clip-path: inset(0);
+  }
+}

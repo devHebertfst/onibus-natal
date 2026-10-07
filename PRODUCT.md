@@ -48,7 +48,7 @@ O que o separa do app oficial, do Moovit e do Google Maps:
 ## Brand Commitments
 
 - Idioma: português do Brasil, tom direto e coloquial ("Toque numa parada do mapa para ver os próximos ônibus").
-- O nome atual "Ônibus.natal", o ícone de pulso e o visual escuro com acento vermelho inspirado no [Ponto.OS](https://pontoos.com.br/) existem no código, mas **não** foram confirmados como compromissos de marca: podem mudar num redesign.
+- Identidade escolhida no redesign de 2026-10-07: nome "Ônibus Natal" e o mundo da sinalização viária brasileira (verde de indicação, amarelo de advertência, letra de rodovia). Substituiu o visual escuro com vermelho inspirado no Ponto.OS. Decisões visuais duráveis ficam em `DESIGN.md`.
 
 ## Evidence on Hand
 

@@ -184,23 +184,36 @@ ritmo do GPS) em vez de 15s. "098" e "98" são a mesma entrada.
 
 ## Interface
 
-O visual segue a linha de painel de telemetria do
-[Ponto.OS](https://pontoos.com.br/) (Cuiabá): tema escuro com acento
-vermelho, mapa em tela cheia e o painel flutuando por cima (no celular ele
-vira uma gaveta embaixo).
-- Status da conexão (ao vivo / reconectando / atrasado) e há quantos segundos
-  chegou o último dado.
+Feita para quem está no ponto, no sol, com uma mão só. O visual segue a
+sinalização viária brasileira (CONTRAN): verde de indicação na faixa do topo
+e na placa do ponto, amarelo de advertência para dado atrasado, borda vermelha
+para erro, letra Overpass (herdeira aberta da letra de rodovia). Tema dia
+(chão branco) e noite (chão asfalto, placas continuam acesas), trocando todos
+os tokens e o mapa-base. O mapa ocupa a tela inteira; no celular o painel é
+uma gaveta arrastável com três alturas.
+
+- **Fluxo do ponto:** abra a linha e escolha o ponto em "Paradas perto de
+  mim" (GPS), na lista com busca por rua/bairro ou tocando no mapa (alvo de
+  44 px). Paradas de ida e volta no mesmo lugar viram um ponto só.
+- **Placa de chegada:** uma linha por sentido, seta no rumo real do traçado,
+  tempo até o próximo ônibus, quantas paradas faltam e os seguintes. A
+  estimativa (distância pelo traçado a 18 km/h) é dita como estimativa.
+- **Meu ponto:** salvo por linha no navegador; ao reabrir a linha a placa
+  aparece direto. Link direto: `?linha=33&parada=<código>`.
+- Estado da conexão (ao vivo, reconectando, sem internet, dados atrasados) e
+  há quantos segundos chegou o último dado. O leitor de tela só é avisado de
+  mudanças (conexão, ponto escolhido, ônibus chegando).
 - Linhas favoritas e recentes, guardadas no navegador.
-- Toque numa parada para ver os próximos ônibus com estimativa de chegada:
-  distância pelo traçado até a parada (paradas projetadas no traçado, em
-  ordem) dividida pela velocidade comercial de 18 km/h.
-- Mapa escuro ou claro (Esri Dark/Light Gray, sem chave de API), botão
-  "centralizar em mim", tela de abertura e manifest para instalar como app.
-- Atalhos: `/` busca, `R` enquadra a rota, `F` favorita, `Esc` fecha.
+- Atalhos (só com teclado e mouse): `/` busca, `R` linha inteira, `F`
+  favorita, `Esc` volta.
+
+O processo de design (brief, contrato de direção, auditoria) está em
+`.impeccable/`.
 
 ## Próximas fases
 
-- **Busca por parada e planejador de rota** (a pé + ônibus), como no Ponto.OS.
+- **Busca por parada e planejador de rota** (a pé + ônibus): saber quais linhas
+  passam em cada parada exige um índice parada → linhas no backend.
 - **Service worker** para o app instalado abrir mesmo com internet fraca.
 - **PostgreSQL + PostGIS**: gravar as posições (`geography(Point)`) para
   histórico, tempos de viagem e velocidades médias por trecho.

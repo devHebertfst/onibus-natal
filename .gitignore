@@ -7,3 +7,6 @@ coverage/
 .env.*
 *.log
 .DS_Store
+
+# Capturas da revisão de design (geradas localmente)
+.impeccable/review/
