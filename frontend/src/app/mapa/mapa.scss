@@ -1,0 +1,64 @@
+:host {
+  display: block;
+  height: 100%;
+}
+
+.mapa {
+  height: 100%;
+  width: 100%;
+}
+
+/* Os marcadores são criados pelo Leaflet fora do template: estilos globais. */
+:host ::ng-deep {
+  .onibus-icone {
+    background: none;
+    border: none;
+  }
+
+  .onibus {
+    position: relative;
+  }
+
+  /* Círculo com "bico" apontando para o rumo do ônibus. */
+  .seta {
+    --cor: #616161;
+    position: absolute;
+    left: -11px;
+    top: -11px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--cor);
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 40%);
+    box-sizing: border-box;
+    transition: background 0.3s;
+
+    &.com-rumo::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: -7px;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-bottom: 7px solid var(--cor);
+      border-top: 0;
+    }
+  }
+
+  .rotulo {
+    position: absolute;
+    left: 14px;
+    top: -9px;
+    white-space: nowrap;
+    font:
+      600 11px/1 system-ui,
+      sans-serif;
+    background: rgb(255 255 255 / 92%);
+    color: #212121;
+    padding: 3px 5px;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 25%);
+    pointer-events: none;
+  }
+}

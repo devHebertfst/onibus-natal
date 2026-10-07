@@ -1,0 +1,71 @@
+<aside class="painel">
+  <header>
+    <h1>Ônibus Natal</h1>
+    <form (submit)="$event.preventDefault(); acompanhar(campo.value)">
+      <input
+        #campo
+        [value]="numero() ?? ''"
+        type="text"
+        inputmode="numeric"
+        autocomplete="off"
+        placeholder="Número da linha (ex.: 33)"
+        aria-label="Número da linha"
+        maxlength="10"
+      />
+      <button type="submit">Ver</button>
+    </form>
+  </header>
+
+  @if (erro(); as mensagem) {
+    <p class="aviso erro">{{ mensagem }}</p>
+  }
+  @if (carregando()) {
+    <p class="aviso">Carregando linha {{ numero() }}…</p>
+  }
+
+  @if (linha(); as l) {
+    <section>
+      <h2>Linha {{ l.numero }}</h2>
+      <p class="meta">
+        Atualizado às {{ l.atualizadoEm | date: 'HH:mm:ss' }}
+        @if (l.desatualizado) {
+          <span class="tag">dados podem estar atrasados</span>
+        }
+      </p>
+      <ul class="legenda">
+        @for (it of itinerarios(); track it.codigo) {
+          <li>
+            <span class="cor" [style.background]="it.cor"></span>{{ it.descricao || it.codigo }}
+          </li>
+        }
+      </ul>
+    </section>
+
+    <section class="lista">
+      <h2>{{ onibus().length }} ônibus em circulação</h2>
+      <ul>
+        @for (o of onibus(); track o.id) {
+          <li>
+            <button type="button" (click)="focar(o.id)">
+              <span class="cor" [style.background]="corDoOnibus(o.itinerarios)"></span>
+              <span class="id">{{ o.id }}</span>
+              <span class="vel" [class.parado]="o.velocidadeKmh === 0">
+                {{ o.velocidadeKmh === 0 ? 'parado' : o.velocidadeKmh + ' km/h' }}
+              </span>
+            </button>
+          </li>
+        } @empty {
+          <li class="vazio">Nenhum ônibus com GPS ativo agora.</li>
+        }
+      </ul>
+    </section>
+  } @else if (!carregando() && !erro()) {
+    <p class="aviso">Digite o número de uma linha para ver os ônibus no mapa.</p>
+  }
+
+  <footer>Posições: API pública Nubus · atualização a cada ~15 s</footer>
+</aside>
+
+<main>
+  <app-mapa [dados]="dados()" (onibusClicado)="focar($event)" />
+</main>
