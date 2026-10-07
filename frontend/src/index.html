@@ -2,96 +2,69 @@
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
-    <title>Ônibus Natal — ao vivo</title>
+    <title>Ônibus Natal — quanto falta pro seu ônibus</title>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta
       name="description"
-      content="Ônibus de Natal/RN se movendo no mapa em tempo real, com previsão de chegada nas paradas."
+      content="Os ônibus de Natal/RN andando no mapa em tempo real e quanto falta para o próximo chegar no seu ponto."
     />
-    <meta name="theme-color" content="#0a0808" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#00653a" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Ônibus Natal" />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
     <link rel="icon" type="image/svg+xml" href="icon.svg" />
     <link rel="apple-touch-icon" href="icon.svg" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="preconnect" href="https://server.arcgisonline.com" crossorigin />
+    <script>
+      // Tema antes do primeiro quadro, para não piscar de claro para escuro.
+      (function () {
+        var t = null;
+        try {
+          t = localStorage.getItem('onibus-natal:tema');
+        } catch (e) {}
+        if (t !== 'dia' && t !== 'noite')
+          t = matchMedia('(prefers-color-scheme: dark)').matches ? 'noite' : 'dia';
+        document.documentElement.dataset.tema = t;
+      })();
+    </script>
     <style>
       html,
       body {
-        background: #0a0808;
         margin: 0;
+        background: #fff;
       }
-      #splash .palavra {
+      [data-tema='noite'] body {
+        background: #15191b;
+      }
+      #splash .placa {
+        position: relative;
+        padding: 18px 26px;
+        border-radius: 10px;
+        background: #00653a;
         color: #fff;
         font:
-          650 22px/1 ui-sans-serif,
-          system-ui,
+          800 26px/1 system-ui,
           sans-serif;
-        letter-spacing: -0.02em;
+        letter-spacing: -0.01em;
+        box-shadow: 0 8px 24px rgb(0 0 0 / 22%);
       }
-      #splash .palavra span {
-        color: #f4423e;
-        font-family: ui-monospace, Menlo, Consolas, monospace;
-      }
-      #splash .sub {
-        color: #c2c1c1;
-        font:
-          11px ui-monospace,
-          Menlo,
-          Consolas,
-          monospace;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-      }
-      #splash .pulso {
-        animation: splash 2.4s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
-        transform-origin: center;
-        transform-box: fill-box;
-      }
-      @keyframes splash {
-        0% {
-          transform: scale(1);
-          opacity: 0.85;
-        }
-        100% {
-          transform: scale(2.6);
-          opacity: 0;
-        }
+      #splash .placa::before {
+        content: '';
+        position: absolute;
+        inset: 5px;
+        border: 2px solid #fff;
+        border-radius: 7px;
       }
     </style>
   </head>
   <body>
     <div id="splash" aria-hidden="true">
-      <svg viewBox="0 0 512 512" width="88" height="88">
-        <rect width="512" height="512" rx="112" fill="#0a0808" stroke="#2a1c1a" stroke-width="12" />
-        <circle
-          class="pulso"
-          cx="256"
-          cy="256"
-          r="56"
-          fill="none"
-          stroke="#e30613"
-          stroke-width="8"
-        />
-        <circle
-          cx="256"
-          cy="256"
-          r="100"
-          fill="none"
-          stroke="#e30613"
-          stroke-width="12"
-          stroke-opacity=".55"
-        />
-        <circle cx="256" cy="256" r="56" fill="#e30613" />
-        <circle cx="256" cy="256" r="20" fill="#0a0808" />
-      </svg>
-      <div class="palavra">Ônibus<span>.natal</span></div>
-      <div class="sub">ao vivo · natal/rn</div>
+      <div class="placa">Ônibus Natal</div>
     </div>
     <app-root></app-root>
   </body>

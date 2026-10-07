@@ -30,12 +30,12 @@ export class LinhaService {
       });
       // Evento do backend (não confundir com `error`, que é da conexão).
       fonte.addEventListener('erro', (ev) => {
-        const { status, message } = JSON.parse((ev as MessageEvent<string>).data) as {
+        const { status } = JSON.parse((ev as MessageEvent<string>).data) as {
           status: number;
           message: string;
         };
         const fatal = status === 400 || status === 404;
-        obs.next({ tipo: 'erro', mensagem: message, fatal });
+        obs.next({ tipo: 'erro', mensagem: mensagemDeErro(status, numero), fatal });
         if (fatal) fonte.close();
       });
       fonte.onerror = () => {
@@ -45,5 +45,19 @@ export class LinhaService {
 
       return () => fonte.close();
     });
+  }
+}
+
+/** O que dizer ao passageiro para cada falha (o texto técnico fica no servidor). */
+export function mensagemDeErro(status: number, numero: string): string {
+  switch (status) {
+    case 404:
+      return `Não achamos a linha ${numero}. Confira o número no letreiro do ônibus.`;
+    case 400:
+      return 'Use só o número da linha, como 33 ou 33A.';
+    case 503:
+      return 'Muita gente acompanhando linhas agora. Tentando de novo em instantes…';
+    default:
+      return 'A central de dados dos ônibus não respondeu. Tentando de novo…';
   }
 }

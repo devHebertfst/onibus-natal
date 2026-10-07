@@ -1,32 +1,68 @@
-/* Tema escuro único (como um painel de telemetria), com acento vermelho. */
-:root {
+/*
+ * Mundo visual: sinalização viária brasileira (CONTRAN).
+ * Verde de indicação na casca e na placa do ponto; branco e asfalto no chão;
+ * amarelo de advertência para dados atrasados; vermelho de regulamentação
+ * para erros. À noite o chão vira asfalto e as placas continuam acesas,
+ * como placas refletivas.
+ */
+:root,
+[data-tema='dia'] {
+  color-scheme: light;
+  --chao: #ffffff;
+  --chao-2: #eef1f2;
+  --chao-3: #e1e6e8;
+  --linha: #cdd4d8;
+  --linha-forte: #7d878d;
+  --texto: #1b1f22;
+  --texto-2: #3a4146;
+  --texto-3: #535c62;
+  --placa: #00653a;
+  --placa-escura: #004d2c;
+  --placa-texto: #ffffff;
+  --placa-texto-2: #e2efe7;
+  --adv: #ffc20e;
+  --adv-texto: #1b1f22;
+  --reg: #c4161c;
+  --reg-fundo: #fdecec;
+  --foco: #1d5fd1;
+  --selecao: #ffc20e;
+  --sombra: 0 1px 2px rgb(16 20 22 / 16%), 0 6px 18px rgb(16 20 22 / 14%);
+  --sombra-placa: 0 2px 4px rgb(16 20 22 / 22%), 0 8px 20px rgb(16 20 22 / 16%);
+  --raio: 8px;
+  --raio-painel: 14px;
+  --fonte: 'Overpass Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+[data-tema='noite'] {
   color-scheme: dark;
-  --bg: #0a0808;
-  --superficie: #141010;
-  --superficie-2: #1d1717;
-  --borda: #2a1c1a;
-  --borda-forte: #3d2a27;
-  --texto: #f6f6f6;
-  --texto-2: #c2c1c1;
-  --texto-3: #8a8585;
-  --acento: #e30613;
-  --acento-claro: #f4423e;
-  --ok: #3ddc84;
-  --alerta: #ffb020;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --raio: 14px;
-  --sombra: 0 10px 30px rgb(0 0 0 / 55%), 0 0 0 1px var(--borda);
+  --chao: #15191b;
+  --chao-2: #1e2326;
+  --chao-3: #283035;
+  --linha: #333b40;
+  --linha-forte: #6e7981;
+  --texto: #f1f3f4;
+  --texto-2: #cfd5d8;
+  --texto-3: #a5aeb3;
+  --placa: #00653a;
+  --placa-escura: #00512f;
+  --reg: #ff6b6b;
+  --reg-fundo: #3a1a1b;
+  --foco: #ffc20e;
+  --sombra: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 22px rgb(0 0 0 / 45%);
+  --sombra-placa: 0 2px 4px rgb(0 0 0 / 45%), 0 8px 22px rgb(0 0 0 / 40%);
 }
 
 html,
 body {
   margin: 0;
   height: 100%;
-  background: var(--bg);
+  overflow: clip;
+  background: var(--chao);
   color: var(--texto);
-  font-family: var(--sans);
+  font-family: var(--fonte);
+  font-size: 16px;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
 }
 
@@ -36,9 +72,39 @@ input {
   color: inherit;
 }
 
+::selection {
+  background: var(--selecao);
+  color: #1b1f22;
+}
+
+input {
+  caret-color: var(--placa);
+}
+
+[data-tema='noite'] input {
+  caret-color: var(--adv);
+}
+
 :focus-visible {
-  outline: 2px solid var(--acento-claro);
+  outline: 3px solid var(--foco);
   outline-offset: 2px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--linha-forte) transparent;
+}
+
+.visualmente-oculto {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -55,18 +121,12 @@ input {
   position: fixed;
   inset: 0;
   z-index: 2000;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  background:
-    radial-gradient(circle at 50% 42%, #e3061324, #0000 42%),
-    radial-gradient(#80808033 1px, #0000 1px) 0 0 / 18px 18px,
-    var(--bg);
+  display: grid;
+  place-items: center;
+  background: var(--chao);
   transition:
-    opacity 0.35s,
-    visibility 0.35s;
+    opacity 0.3s,
+    visibility 0.3s;
 
   &.oculto {
     opacity: 0;
@@ -74,91 +134,68 @@ input {
   }
 }
 
-/* ---- Leaflet no tema escuro ---- */
+/* ---- Leaflet no mundo das placas ---- */
 .leaflet-container {
-  background: var(--bg);
-  font-family: var(--sans);
+  background: var(--chao-2);
+  font-family: var(--fonte);
 }
 
 .leaflet-bar {
   border: 0 !important;
   box-shadow: var(--sombra) !important;
-  border-radius: 12px !important;
+  border-radius: var(--raio) !important;
   overflow: hidden;
 
   a,
   a:hover {
-    width: 40px !important;
-    height: 40px !important;
-    line-height: 40px !important;
-    background: var(--superficie) !important;
+    width: 44px !important;
+    height: 44px !important;
+    line-height: 44px !important;
+    font-size: 20px !important;
+    background: var(--chao) !important;
     color: var(--texto) !important;
-    border-bottom: 1px solid var(--borda) !important;
+    border-bottom: 1px solid var(--linha) !important;
   }
 
   a:hover {
-    background: var(--superficie-2) !important;
+    background: var(--chao-2) !important;
   }
 }
 
 .leaflet-control-attribution {
-  background: rgb(10 8 8 / 70%) !important;
-  color: var(--texto-3) !important;
-  font-size: 10px;
+  background: color-mix(in srgb, var(--chao) 85%, transparent) !important;
+  color: var(--texto-2) !important;
+  font-size: 11px;
 
   a {
-    color: var(--texto-2) !important;
+    color: var(--texto) !important;
   }
 }
 
-.leaflet-tooltip.dica {
-  background: var(--superficie);
-  color: var(--texto);
-  border: 1px solid var(--borda-forte);
-  border-radius: 8px;
-  box-shadow: var(--sombra);
-  font-size: 12px;
-
-  &::before {
-    display: none;
-  }
-}
-
-/* No celular o painel ocupa a base da tela: zoom por pinça. */
+/* No celular o zoom é por pinça e a gaveta ocupa a base da tela. */
 @media (max-width: 760px) {
   .leaflet-control-zoom {
     display: none;
   }
 
   .leaflet-bottom {
-    bottom: 34dvh;
+    bottom: var(--altura-gaveta, 34dvh);
+    transition: bottom 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   }
 }
 
-/* Paradas: miolo escuro, borda na cor do itinerário. */
-path.parada {
-  fill: var(--bg);
-  cursor: pointer;
-  transition: stroke-width 0.15s;
-
-  &.ativa {
-    fill: var(--texto);
-    stroke-width: 3;
+/* Altura visível da gaveta, para o zoom, a atribuição e os avisos não ficarem atrás dela. */
+@media (max-width: 760px) {
+  app-root {
+    --altura-gaveta: 64dvh;
   }
-}
 
-.mapa-claro path.parada:not(.ativa) {
-  fill: #fff;
-}
-
-/* Usada pelos marcadores do mapa (fora do encapsulamento dos componentes). */
-@keyframes radar {
-  0% {
-    transform: scale(1);
-    opacity: 0.9;
+  app-root:has(.painel[data-gaveta='baixa']) {
+    --altura-gaveta: 40dvh;
   }
-  100% {
-    transform: scale(2.8);
-    opacity: 0;
+
+  /* Gaveta no alto: controles ficam por baixo dela e os avisos vão para a base. */
+  app-root:has(.painel[data-gaveta='alta']) {
+    --altura-gaveta: env(safe-area-inset-bottom);
   }
 }

@@ -10,21 +10,31 @@
 
 /* Os marcadores são criados pelo Leaflet fora do template: estilos globais. */
 :host ::ng-deep {
+  /* ---- ônibus: plaquinha na cor do sentido, com seta no rumo ---- */
   .onibus-icone {
-    --cor: #8a8585;
+    --cor: #6b7378;
     background: none;
     border: none;
 
     &.selecionado {
-      z-index: 1000 !important;
+      z-index: 2000 !important;
 
-      .pulso {
-        animation: radar 1.8s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+      .corpo {
+        transform: scale(1.2);
+        box-shadow:
+          0 0 0 3px var(--texto),
+          0 2px 6px rgb(0 0 0 / 35%);
       }
 
       .rotulo {
-        border-color: var(--cor);
+        background: var(--texto);
+        color: var(--chao);
+        border-color: var(--texto);
       }
+    }
+
+    &.com-rumo .seta {
+      opacity: 1;
     }
   }
 
@@ -32,63 +42,101 @@
     position: relative;
   }
 
-  .pulso {
+  .corpo {
     position: absolute;
-    left: -11px;
-    top: -11px;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    border: 2px solid var(--cor);
+    left: -14px;
+    top: -14px;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
     box-sizing: border-box;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  /* Círculo com "bico" apontando para o rumo do ônibus. */
-  .seta {
-    position: absolute;
-    left: -10px;
-    top: -10px;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
+    border: 2px solid #fff;
+    border-radius: 7px;
     background: var(--cor);
-    border: 2px solid var(--bg);
-    box-shadow:
-      0 0 0 1px var(--cor),
-      0 0 14px var(--cor);
-    box-sizing: border-box;
-    transition: background 0.3s;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 35%);
+    transition:
+      background 0.3s,
+      transform 0.2s;
 
-    &.com-rumo::after {
+    /* Sem rumo ainda: um ponto branco no lugar da seta. */
+    &::after {
       content: '';
       position: absolute;
-      left: 50%;
-      top: -8px;
-      transform: translateX(-50%);
-      border: 5px solid transparent;
-      border-bottom: 7px solid var(--cor);
-      border-top: 0;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #fff;
     }
+  }
+
+  .com-rumo .corpo::after {
+    display: none;
+  }
+
+  .seta {
+    width: 18px;
+    height: 18px;
+    fill: #fff;
+    opacity: 0;
   }
 
   .rotulo {
     position: absolute;
-    left: 15px;
-    top: -10px;
-    white-space: nowrap;
-    font:
-      600 11px/1 var(--mono),
-      monospace;
-    background: rgb(20 16 16 / 92%);
-    color: var(--texto);
+    left: 18px;
+    top: -12px;
     padding: 4px 6px;
-    border: 1px solid var(--borda-forte);
-    border-radius: 6px;
+    border: 1px solid var(--linha-forte);
+    border-radius: 4px;
+    background: var(--chao);
+    color: var(--texto);
+    font:
+      700 12px/1 var(--fonte),
+      sans-serif;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
     pointer-events: none;
   }
 
+  /* ---- paradas: alvo de 44 px, desenho pequeno no centro ---- */
+  .ponto-icone {
+    display: grid;
+    place-items: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+
+    &.ativo .ponto-mapa {
+      width: 26px;
+      height: 26px;
+      border: 2px solid #fff;
+      border-radius: 6px;
+      background: var(--placa);
+      box-shadow:
+        inset 0 0 0 2px var(--placa),
+        inset 0 0 0 4px #fff,
+        0 2px 6px rgb(0 0 0 / 35%);
+    }
+  }
+
+  .ponto-mapa {
+    width: 14px;
+    height: 14px;
+    box-sizing: border-box;
+    border: 3px solid var(--texto);
+    border-radius: 50%;
+    background: var(--chao);
+    transition:
+      width 0.15s,
+      height 0.15s;
+  }
+
+  .ponto-icone:hover .ponto-mapa {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* ---- passageiro ---- */
   .eu-icone {
     background: none;
     border: none;
@@ -96,14 +144,16 @@
 
   .eu {
     position: absolute;
-    left: -8px;
-    top: -8px;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: #4dabf7;
-    border: 3px solid #fff;
+    left: -9px;
+    top: -9px;
+    width: 18px;
+    height: 18px;
     box-sizing: border-box;
-    box-shadow: 0 0 0 6px rgb(77 171 247 / 25%);
+    border: 3px solid #fff;
+    border-radius: 50%;
+    background: #1d5fd1;
+    box-shadow:
+      0 0 0 6px rgb(29 95 209 / 22%),
+      0 1px 4px rgb(0 0 0 / 30%);
   }
 }
