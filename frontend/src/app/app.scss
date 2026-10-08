@@ -939,6 +939,28 @@ footer {
   color: var(--texto-3);
 }
 
+/* Tela inicial com o mapa afastado: as paradas só aparecem de perto. */
+.dica-mapa {
+  position: absolute;
+  z-index: 1001;
+  left: 50%;
+  bottom: calc(var(--menu-h) + 16px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 32px);
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--chao);
+  color: var(--texto);
+  box-shadow: var(--sombra);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .toast {
   position: absolute;
   z-index: 1003;

@@ -10,6 +10,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { Subscription } from 'rxjs';
 import { FavoritasService } from './core/favoritas.service';
 import { LinhaService, StatusConexao } from './core/linha.service';
@@ -17,10 +18,10 @@ import { LocalizacaoService } from './core/localizacao.service';
 import { ParadaProxima } from './core/paradas.models';
 import { Oficial, mesclarPrevisoes } from './core/previsao-oficial';
 import { PrevisaoService } from './core/previsao.service';
-import { PontoFisico, acharPonto, agruparParadas, pontosProximos } from './core/pontos';
+import { PontoFisico, acharPonto, agruparParadas, distanciaM, pontosProximos } from './core/pontos';
 import { TemaService } from './core/tema.service';
 import { destino, distanciaTexto, nomeParada } from './core/texto';
-import { COR_SEM_ROTA, DadosMapa, Mapa, corDoSentido } from './mapa/mapa';
+import { AreaMapa, COR_SEM_ROTA, DadosMapa, Mapa, corDoSentido } from './mapa/mapa';
 import { Placa, SentidoNaPlaca } from './placa/placa';
 import { LocalTrajeto, PontosTrajeto, TipoPontoTrajeto, Viagem } from './core/trajeto.models';
 import { Planejador } from './planejador/planejador';
@@ -43,10 +44,12 @@ interface Seguido {
 
 /** Por quanto tempo a placa explica por que o número mudou. */
 const AVISO_PLACA_MS = 45_000;
+/** Abaixo deste zoom a tela inicial não busca paradas: seriam centenas de marcadores. */
+const ZOOM_AREA = 14;
 
 @Component({
   selector: 'app-root',
-  imports: [Mapa, Placa, Planejador, Navegacao],
+  imports: [Mapa, Placa, Planejador, Navegacao, NgTemplateOutlet],
   templateUrl: './app.html',
   styleUrls: ['./app.scss', './app-paineis.scss', './app-mapa-ui.scss', './app-catalogo.scss'],
   host: { '(document:keydown)': 'tecla($event)' },
@@ -144,6 +147,13 @@ export class App {
   protected readonly avisoPerto = signal<string | null>(null);
   /** Parada da lista "perto de você" tocada no mapa. */
   protected readonly paradaPertoSel = signal<string | null>(null);
+  /** Tela inicial: paradas na parte visível do mapa. */
+  protected readonly areaParadas = signal<ParadaProxima[]>([]);
+  /** Mapa afastado demais para mostrar as paradas da tela inicial. */
+  protected readonly longeDemais = signal(false);
+  private ultimaArea: AreaMapa | null = null;
+  private consultaArea?: AbortController;
+  private timerArea?: ReturnType<typeof setTimeout>;
 
   protected readonly tema = this.temaService.tema;
   protected readonly corSemRota = COR_SEM_ROTA;
@@ -156,30 +166,43 @@ export class App {
     })),
   );
   protected readonly pontos = computed(() => agruparParadas(this.linha()?.itinerarios ?? []));
-  /** Paradas no mapa: as da linha aberta ou, na tela inicial, as perto do passageiro. */
-  protected readonly pontosMapa = computed((): PontoFisico[] =>
-    this.linha() && this.modoMapa() !== 'paradas'
-      ? this.pontos()
-      : (this.perto() ?? []).map((p) => ({
-          chave: p.codigo,
-          nome: nomeParada(p.descricao) || 'Parada',
-          lat: p.lat,
-          lng: p.lng,
-          sentidos: [],
-        })),
+  /** Trajeto (pontos ou viagem) desenhado no mapa. */
+  private readonly trajetoNoMapa = computed(() => {
+    const { origem, destino } = this.pontosTrajeto();
+    return this.modoMapa() === 'trajeto' && !!(this.viagemTrajeto() || origem || destino);
+  });
+  /** Nada aberto (linha, paradas perto, trajeto): o mapa mostra as paradas da área visível. */
+  protected readonly mapaVazio = computed(
+    () => !this.numero() && !this.perto()?.length && !this.trajetoNoMapa(),
   );
+  /**
+   * Paradas no mapa: as da linha aberta; sem linha, as perto do passageiro;
+   * sem nada, as da parte visível do mapa.
+   */
+  protected readonly pontosMapa = computed((): PontoFisico[] => {
+    if (this.linha() && this.modoMapa() !== 'paradas') return this.pontos();
+    const perto = this.perto() ?? [];
+    return (perto.length ? perto : this.mapaVazio() ? this.areaParadas() : []).map((p) => ({
+      chave: p.codigo,
+      nome: nomeParada(p.descricao) || 'Parada',
+      lat: p.lat,
+      lng: p.lng,
+      sentidos: [],
+    }));
+  });
   protected readonly pertoLista = computed(() =>
-    (this.perto() ?? []).map((p) => ({
-      ...p,
-      nome: nomeParada(p.descricao) || 'Parada sem endereço',
-      distancia: distanciaTexto(p.metros),
-      linhas: p.linhas.map((l) => ({
-        numero: l.numero,
-        destino: l.itinerarios.length ? destino(l.itinerarios[0]) : null,
-        rotulo: [`Linha ${l.numero}`, ...l.itinerarios.map(destino)].join(', '),
-      })),
-    })),
+    (this.perto() ?? []).map((p) => itemParada(p, distanciaTexto(p.metros))),
   );
+  /** Parada da área visível tocada no mapa (fora da lista "perto de você"). */
+  protected readonly paradaArea = computed(() => {
+    const chave = this.paradaPertoSel();
+    if (!chave || !this.mapaVazio()) return null;
+    const p = this.areaParadas().find((x) => x.codigo === chave);
+    if (!p) return null;
+    // A distância que vem da área é até o centro do mapa; a que interessa é até o passageiro.
+    const pos = this.local.posicao();
+    return itemParada(p, pos ? distanciaTexto(distanciaM(pos.lat, pos.lng, p.lat, p.lng)) : null);
+  });
   protected readonly pertoFiltradas = computed(() => {
     const termo = this.filtroPerto().trim().toLocaleLowerCase('pt-BR');
     return this.pertoLista().filter(
@@ -363,6 +386,8 @@ export class App {
     const relogio = setInterval(() => this.tique(), 1000);
     inject(DestroyRef).onDestroy(() => {
       clearInterval(relogio);
+      clearTimeout(this.timerArea);
+      this.consultaArea?.abort();
       this.assinatura?.unsubscribe();
       this.consultaCatalogo?.abort();
     });
@@ -418,6 +443,11 @@ export class App {
         assinaturas.forEach((a) => a.unsubscribe());
         this.oficiais.clear();
       });
+    });
+
+    // Voltou ao mapa vazio (fechou a linha, limpou o trajeto): busca as paradas da área.
+    effect(() => {
+      if (this.mapaVazio()) untracked(() => this.agendarArea(0));
     });
 
     const conexao = () => this.offline.set(!navigator.onLine);
@@ -502,7 +532,11 @@ export class App {
     });
   }
 
-  protected fechar(): void {
+  /**
+   * Volta à tela inicial: fecha a linha, as paradas perto e o trajeto, e o
+   * mapa passa a mostrar as paradas da área visível.
+   */
+  protected voltarAoInicio(): void {
     this.assinatura?.unsubscribe();
     this.numero.set(null);
     this.dados.set(null);
@@ -512,11 +546,59 @@ export class App {
     this.selecionado.set(null);
     this.pontoSel.set(null);
     this.sentidosPlaca.set([]);
+    this.esquecerSeguidos();
     this.paradaPendente = null;
     this.valorCampo.set('');
     this.campo().nativeElement.value = '';
+    this.perto.set(null);
+    this.paradaPertoSel.set(null);
+    this.filtroPerto.set('');
+    this.avisoPerto.set(null);
+    this.planejador()?.limpar();
+    this.pontosTrajeto.set({ origem: null, destino: null });
+    this.viagemTrajeto.set(null);
+    this.selecaoTrajeto.set(null);
+    this.modoMapa.set('linha');
     this.atualizarUrl();
-    this.campo().nativeElement.focus();
+    this.fecharMenu();
+    // Perto o bastante para as paradas aparecerem.
+    requestAnimationFrame(() => this.mapa().aproximar(ZOOM_AREA + 1));
+    this.anuncio.set('Início. O mapa mostra as paradas da região.');
+  }
+
+  protected aoMudarArea(area: AreaMapa): void {
+    this.ultimaArea = area;
+    if (this.mapaVazio()) this.agendarArea(250);
+  }
+
+  /** Espera o mapa parar um instante antes de buscar (arrastar dispara vários movimentos). */
+  private agendarArea(atrasoMs: number): void {
+    clearTimeout(this.timerArea);
+    this.timerArea = setTimeout(() => void this.carregarArea(), atrasoMs);
+  }
+
+  private async carregarArea(): Promise<void> {
+    const area = this.ultimaArea;
+    if (!area || !this.mapaVazio()) return;
+    this.consultaArea?.abort();
+    this.longeDemais.set(area.zoom < ZOOM_AREA);
+    if (area.zoom < ZOOM_AREA) {
+      this.areaParadas.set([]);
+      return;
+    }
+    const consulta = new AbortController();
+    this.consultaArea = consulta;
+    try {
+      const lista = await this.previsaoService.naArea(area, consulta.signal);
+      if (!consulta.signal.aborted) this.areaParadas.set(lista);
+    } catch {
+      // Sem resposta: ficam as paradas que já estavam; o próximo movimento tenta de novo.
+    }
+  }
+
+  /** Mapa afastado demais na tela inicial: aproxima até as paradas aparecerem. */
+  protected aproximarParadas(): void {
+    this.mapa().aproximar(ZOOM_AREA + 1);
   }
 
   protected focar(id: string): void {
@@ -785,6 +867,13 @@ export class App {
 
   /** Toque numa parada do mapa: escolhe o ponto da linha ou, sem linha, mostra a parada na lista. */
   protected aoTocarPonto(chave: string): void {
+    const tipo = this.selecaoTrajeto();
+    if (tipo) {
+      // Escolhendo origem ou destino: a parada tocada vira o ponto do trajeto.
+      const p = this.pontosMapa().find((x) => x.chave === chave);
+      if (p) this.planejador()?.definirPonto(tipo, { lat: p.lat, lng: p.lng, nome: p.nome });
+      return;
+    }
     if (this.linha() && this.modoMapa() !== 'paradas') {
       this.escolherPonto(chave, false);
       return;
@@ -1053,6 +1142,20 @@ export class App {
     this.aviso.set(texto);
     this.timerAviso = setTimeout(() => this.aviso.set(null), 4500);
   }
+}
+
+/** Parada como a lista mostra: nome legível e as linhas com o destino de cada uma. */
+function itemParada(p: ParadaProxima, distancia: string | null) {
+  return {
+    ...p,
+    nome: nomeParada(p.descricao) || 'Parada sem endereço',
+    distancia,
+    linhas: p.linhas.map((l) => ({
+      numero: l.numero,
+      destino: l.itinerarios.length ? destino(l.itinerarios[0]) : null,
+      rotulo: [`Linha ${l.numero}`, ...l.itinerarios.map(destino)].join(', '),
+    })),
+  };
 }
 
 function celular(): boolean {

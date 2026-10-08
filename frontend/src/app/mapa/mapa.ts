@@ -9,6 +9,15 @@ import { LocalTrajeto, PontosTrajeto, Viagem } from '../core/trajeto.models';
 import { Frota } from './dead-reckoning/frota';
 import { Previsao, preverChegadas, rumoNaParada } from './dead-reckoning/previsao';
 
+/** Parte visível do mapa. */
+export interface AreaMapa {
+  sul: number;
+  oeste: number;
+  norte: number;
+  leste: number;
+  zoom: number;
+}
+
 export interface DadosMapa {
   linha: Linha;
   recebidoEm: number;
@@ -88,6 +97,8 @@ export class Mapa {
   readonly onibusClicado = output<string>();
   readonly pontoClicado = output<string>();
   readonly mapaClicado = output<LocalTrajeto>();
+  /** A cada fim de movimento (arrastar, zoom, enquadrar). */
+  readonly areaMudou = output<AreaMapa>();
   readonly escolhendoTrajeto = input(false);
   readonly pontosTrajeto = input<PontosTrajeto>({ origem: null, destino: null });
   readonly viagem = input<Viagem | null>(null);
@@ -99,7 +110,8 @@ export class Mapa {
 
   readonly opcoes: L.MapOptions = {
     center: NATAL,
-    zoom: 13,
+    // Perto o bastante para a tela inicial já mostrar as paradas do centro.
+    zoom: 14,
     zoomControl: false,
     attributionControl: true,
   };
@@ -178,6 +190,18 @@ export class Mapa {
       mapa.getContainer().classList.toggle('longe', mapa.getZoom() < ZOOM_PARADAS);
     mapa.on('zoomend', escala);
     escala();
+    const area = () => {
+      const b = mapa.getBounds();
+      this.areaMudou.emit({
+        sul: b.getSouth(),
+        oeste: b.getWest(),
+        norte: b.getNorth(),
+        leste: b.getEast(),
+        zoom: mapa.getZoom(),
+      });
+    };
+    mapa.on('moveend', area);
+    area();
     this.camadaTracado.addTo(mapa);
     this.camadaParadas.addTo(mapa);
     this.camadaOnibus.addTo(mapa);
@@ -207,6 +231,11 @@ export class Mapa {
   /** Leva o mapa até um ponto (parada, posição do passageiro). */
   irPara(lat: number, lng: number): void {
     this.mapa?.flyTo([lat, lng], Math.max(this.mapa.getZoom(), 16));
+  }
+
+  /** Aproxima até um zoom mínimo, sem sair do lugar. */
+  aproximar(zoom: number): void {
+    if (this.mapa && this.mapa.getZoom() < zoom) this.mapa.flyTo(this.mapa.getCenter(), zoom);
   }
 
   centro(): LocalTrajeto | null {
@@ -391,6 +420,8 @@ export class Mapa {
       limites.extend(linhaMapa.getBounds());
     });
     this.limitesTracado = limites;
+    // Com traçado, as paradas afastadas viram pontinhos para não cobrir a cor da rota.
+    this.mapa?.getContainer().classList.toggle('com-tracado', desenhaveis.length > 0);
     // Enquadra só ao abrir a linha (não a cada troca de tema).
     if (!this.enquadrou && limites.isValid()) {
       this.enquadrou = true;
@@ -526,6 +557,7 @@ export class Mapa {
     this.linhaAtual = null;
     this.assinaturaTracado = '';
     this.limitesTracado = undefined;
+    this.mapa?.getContainer().classList.remove('com-tracado');
     this.enquadrou = false;
   }
 }

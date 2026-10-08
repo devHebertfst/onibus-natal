@@ -117,4 +117,31 @@ describe('ParadasService', () => {
       BadRequestException,
     );
   });
+
+  it('lista as paradas com linha dentro da área, da mais central à mais longe', async () => {
+    const nubus = fakeClient() as unknown as NubusClient;
+    const service = new ParadasService(nubus, new CatalogoRotasService(nubus));
+
+    const r = await service.naArea(-5.81, -35.21, -5.799, -35.19);
+
+    // A #3 fica fora da área e a #4 não tem linha; a #2 está mais perto do centro.
+    expect(r.map((p) => p.codigo)).toEqual(['PARADA#2', 'PARADA#1']);
+    expect(r[0].linhas).toEqual([
+      { numero: '33', itinerarios: ['Planalto / Praia do Meio'] },
+    ]);
+  });
+
+  it('recusa área invertida ou grande demais', async () => {
+    const nubus = fakeClient() as unknown as NubusClient;
+    const service = new ParadasService(nubus, new CatalogoRotasService(nubus));
+    await expect(
+      service.naArea(-5.79, -35.21, -5.81, -35.19),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.naArea(-6.2, -35.6, -5.4, -34.8),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.naArea(NaN, -35.21, -5.79, -35.19),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
 });

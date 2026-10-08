@@ -19,4 +19,15 @@ export class ParadasController {
       raio === undefined ? undefined : Number(raio),
     );
   }
+
+  /** Paradas dentro da parte visível do mapa (tela inicial, sem linha aberta). */
+  @Get('area')
+  area(
+    @Query('sul', ParseFloatPipe) sul: number,
+    @Query('oeste', ParseFloatPipe) oeste: number,
+    @Query('norte', ParseFloatPipe) norte: number,
+    @Query('leste', ParseFloatPipe) leste: number,
+  ): Promise<ParadaProximaDto[]> {
+    return this.paradas.naArea(sul, oeste, norte, leste);
+  }
 }

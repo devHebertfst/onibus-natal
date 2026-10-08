@@ -372,6 +372,12 @@
       }
       <section class="perto" aria-labelledby="titulo-perto">
         <h2 id="titulo-perto" class="visualmente-oculto">Encontre uma parada</h2>
+        @if (paradaArea(); as p) {
+          <ul class="paradas-perto parada-tocada" aria-label="Parada escolhida no mapa">
+            <ng-container *ngTemplateOutlet="itemParada; context: { $implicit: p }" />
+          </ul>
+          <p class="dica">Toque numa linha para ver quanto falta para ela passar nesta parada.</p>
+        }
         <button
           type="button"
           class="botao secundario largo"
@@ -405,29 +411,7 @@
           />
           <ul class="paradas-perto">
             @for (p of pertoFiltradas(); track p.codigo) {
-              <li [attr.data-parada]="p.codigo" [class.ativa]="p.codigo === paradaPertoSel()">
-                <div class="cabeca">
-                  <strong>{{ p.nome }}</strong>
-                  <span class="dist">{{ p.distancia }}</span>
-                </div>
-                <ul class="chips" [attr.aria-label]="'Linhas que passam em ' + p.nome">
-                  @for (l of p.linhas; track l.numero) {
-                    <li>
-                      <button
-                        type="button"
-                        (click)="abrirNaParada(l.numero, p.codigo)"
-                        [attr.aria-label]="l.rotulo"
-                        [title]="l.rotulo"
-                      >
-                        {{ l.numero }}
-                        @if (l.destino) {
-                          <small>{{ l.destino }}</small>
-                        }
-                      </button>
-                    </li>
-                  }
-                </ul>
-              </li>
+              <ng-container *ngTemplateOutlet="itemParada; context: { $implicit: p }" />
             }
           </ul>
           @if (!pertoFiltradas().length) {
@@ -435,13 +419,22 @@
           }
           <p class="dica">Toque numa linha para ver quanto falta para ela passar nesta parada.</p>
         }
-        @if (!pertoLista().length && !buscandoPerto() && !local.buscando() && !avisoPerto()) {
+        @if (
+          !pertoLista().length &&
+          !paradaArea() &&
+          !buscandoPerto() &&
+          !local.buscando() &&
+          !avisoPerto()
+        ) {
           <div class="vazio-menu">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 21s-6-5.3-6-11a6 6 0 0 1 12 0c0 5.7-6 11-6 11Z" />
               <circle cx="12" cy="10" r="2" /></svg
             ><strong>Encontre seu ponto</strong>
-            <p>Use sua localização para ver as paradas próximas e as linhas que passam por elas.</p>
+            <p>
+              Use sua localização ou toque numa parada do mapa para ver as linhas que passam por
+              ela.
+            </p>
           </div>
         }
       </section>
@@ -821,6 +814,19 @@
       <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
     </svg>
   </button>
+  @if (!mapaVazio()) {
+    <button
+      type="button"
+      (click)="voltarAoInicio()"
+      title="Voltar ao início"
+      aria-label="Voltar ao início: fechar a linha e mostrar as paradas no mapa"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 11 12 4l9 7" />
+        <path d="M5 10v10h5v-6h4v6h5V10" />
+      </svg>
+    </button>
+  }
   @if (linha()) {
     <button
       type="button"
@@ -837,6 +843,12 @@
   }
 </div>
 
+@if (mapaVazio() && longeDemais() && mostrarParadas() && !painelAberto()) {
+  <button type="button" class="dica-mapa" (click)="aproximarParadas()">
+    Aproxime o mapa para ver as paradas
+  </button>
+}
+
 @if (aviso(); as texto) {
   <div class="toast" role="status">{{ texto }}</div>
 }
@@ -848,7 +860,7 @@
   [dados]="modoMapa() === 'linha' ? dados() : null"
   [tema]="tema()"
   [selecionado]="selecionado()"
-  [pontos]="mostrarParadas() && modoMapa() !== 'trajeto' ? pontosMapa() : []"
+  [pontos]="mostrarParadas() && (modoMapa() !== 'trajeto' || mapaVazio()) ? pontosMapa() : []"
   [pontoSelecionado]="pontoSel() ?? paradaPertoSel()"
   [minhaPosicao]="local.posicao()"
   [rotulos]="rotulosMapa()"
@@ -858,4 +870,33 @@
   (onibusClicado)="focar($event)"
   (pontoClicado)="aoTocarPonto($event)"
   (mapaClicado)="aoTocarMapa($event)"
+  (areaMudou)="aoMudarArea($event)"
 />
+
+<ng-template #itemParada let-p>
+  <li [attr.data-parada]="p.codigo" [class.ativa]="p.codigo === paradaPertoSel()">
+    <div class="cabeca">
+      <strong>{{ p.nome }}</strong>
+      @if (p.distancia) {
+        <span class="dist">{{ p.distancia }}</span>
+      }
+    </div>
+    <ul class="chips" [attr.aria-label]="'Linhas que passam em ' + p.nome">
+      @for (l of p.linhas; track l.numero) {
+        <li>
+          <button
+            type="button"
+            (click)="abrirNaParada(l.numero, p.codigo)"
+            [attr.aria-label]="l.rotulo"
+            [title]="l.rotulo"
+          >
+            {{ l.numero }}
+            @if (l.destino) {
+              <small>{{ l.destino }}</small>
+            }
+          </button>
+        </li>
+      }
+    </ul>
+  </li>
+</ng-template>

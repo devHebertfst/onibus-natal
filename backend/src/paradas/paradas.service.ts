@@ -21,6 +21,10 @@ import type { LinhaNaParadaDto, ParadaProximaDto } from './paradas.dto.js';
 const RAIO_MAXIMO_M = 1_500;
 const RAIO_PADRAO_M = 600;
 const QUANTAS = 8;
+/** Paradas devolvidas por área: o mapa só pede de perto, e mais que isso pesa no celular. */
+const QUANTAS_AREA = 400;
+/** Lado máximo da área (graus, ~55 km): mais que a Grande Natal não é "o que está no mapa". */
+const LADO_MAXIMO_AREA = 0.5;
 /** Quantos itinerários consultar em paralelo ao montar o índice. */
 const CONCORRENCIA = 4;
 
@@ -87,6 +91,48 @@ export class ParadasService implements OnApplicationBootstrap {
         resultado.push({ ...p, metros: Math.round(metros), linhas });
     }
     return resultado.sort((a, b) => a.metros - b.metros).slice(0, QUANTAS);
+  }
+
+  /**
+   * Paradas com ônibus dentro de um retângulo (a parte visível do mapa), das
+   * mais perto do centro às mais longe. `metros` é a distância até o centro.
+   */
+  async naArea(
+    sul: number,
+    oeste: number,
+    norte: number,
+    leste: number,
+  ): Promise<ParadaProximaDto[]> {
+    if (
+      ![sul, oeste, norte, leste].every(Number.isFinite) ||
+      Math.abs(sul) > 90 ||
+      Math.abs(norte) > 90 ||
+      Math.abs(oeste) > 180 ||
+      Math.abs(leste) > 180 ||
+      sul > norte ||
+      oeste > leste
+    ) {
+      throw new BadRequestException('Área inválida');
+    }
+    if (norte - sul > LADO_MAXIMO_AREA || leste - oeste > LADO_MAXIMO_AREA) {
+      throw new BadRequestException('Área grande demais: aproxime o mapa');
+    }
+
+    const rede = await this.obterRede();
+    const centro = { lat: (sul + norte) / 2, lng: (oeste + leste) / 2 };
+    const resultado: ParadaProximaDto[] = [];
+    for (const p of rede.paradas) {
+      if (p.lat < sul || p.lat > norte || p.lng < oeste || p.lng > leste)
+        continue;
+      const linhas = rede.linhas.get(p.codigo);
+      if (!linhas) continue;
+      resultado.push({
+        ...p,
+        metros: Math.round(haversine(centro, p)),
+        linhas,
+      });
+    }
+    return resultado.sort((a, b) => a.metros - b.metros).slice(0, QUANTAS_AREA);
   }
 
   private obterRede(): Promise<Rede> {

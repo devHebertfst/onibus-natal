@@ -39,4 +39,20 @@ export class PrevisaoService {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return (await r.json()) as ParadaProxima[];
   }
+
+  /** Paradas com ônibus dentro da parte visível do mapa. */
+  async naArea(
+    area: { sul: number; oeste: number; norte: number; leste: number },
+    signal?: AbortSignal,
+  ): Promise<ParadaProxima[]> {
+    const params = new URLSearchParams({
+      sul: area.sul.toFixed(5),
+      oeste: area.oeste.toFixed(5),
+      norte: area.norte.toFixed(5),
+      leste: area.leste.toFixed(5),
+    });
+    const r = await fetch(`/api/paradas/area?${params}`, { signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return (await r.json()) as ParadaProxima[];
+  }
 }

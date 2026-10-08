@@ -61,6 +61,14 @@ export class Planejador {
     this.selecionar(null);
   }
 
+  /** Apaga origem, destino e resultados (a tela voltou ao início). */
+  limpar(): void {
+    this.origem.set(null);
+    this.destino.set(null);
+    this.invalidar();
+    this.selecionar(null);
+  }
+
   protected inverter(): void {
     const origem = this.origem();
     this.origem.set(this.destino());
