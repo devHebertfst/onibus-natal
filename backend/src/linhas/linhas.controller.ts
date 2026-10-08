@@ -1,4 +1,11 @@
-import { Controller, Get, HttpException, Param, Sse } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpException,
+  Param,
+  Query,
+  Sse,
+} from '@nestjs/common';
 import {
   Observable,
   catchError,
@@ -9,8 +16,9 @@ import {
   takeWhile,
 } from 'rxjs';
 import { config } from '../config.js';
-import type { LinhaDto } from './linha.dto.js';
+import type { LinhaDto, PrevisaoDto } from './linha.dto.js';
 import { LinhasService } from './linhas.service.js';
+import { PrevisaoService } from './previsao.service.js';
 
 /** Formato dos eventos de `GET /api/linhas/:numero/stream`. */
 type EventoSse =
@@ -25,7 +33,10 @@ type EventoSse =
 
 @Controller('linhas')
 export class LinhasController {
-  constructor(private readonly linhas: LinhasService) {}
+  constructor(
+    private readonly linhas: LinhasService,
+    private readonly previsao: PrevisaoService,
+  ) {}
 
   /** Linhas que o backend está acompanhando agora. */
   @Get()
@@ -37,6 +48,19 @@ export class LinhasController {
   @Get(':numero')
   obter(@Param('numero') numero: string): Promise<LinhaDto> {
     return this.linhas.obter(numero);
+  }
+
+  /**
+   * Previsão de chegada da Nubus numa parada de um itinerário da linha:
+   * ônibus com GPS e, depois deles, as próximas viagens da tabela.
+   */
+  @Get(':numero/previsao')
+  previsaoNaParada(
+    @Param('numero') numero: string,
+    @Query('itinerario') itinerario: string,
+    @Query('parada') parada: string,
+  ): Promise<PrevisaoDto> {
+    return this.previsao.obter(numero, itinerario, parada);
   }
 
   /**

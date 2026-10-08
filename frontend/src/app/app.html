@@ -34,7 +34,11 @@
   }
 </header>
 
-<main class="painel" [attr.data-gaveta]="gaveta()" aria-label="Linha e paradas">
+<main
+  class="painel"
+  [attr.data-gaveta]="gaveta()"
+  [attr.aria-label]="planejando() ? 'Planejador de trajetos' : 'Linha e paradas'"
+>
   <button
     type="button"
     class="alca"
@@ -99,113 +103,94 @@
   </div>
 
   <div class="conteudo">
-    @if (erro(); as mensagem) {
-      <p class="aviso erro" id="erro-linha" role="alert">{{ mensagem }}</p>
-    }
-    @if (carregando()) {
-      <p class="carregando">Abrindo a linha {{ numero() }}…</p>
-    }
+    @if (planejando()) {
+      <app-planejador
+        (pontosAlterados)="pontosTrajeto.set($event)"
+        (selecaoAlterada)="selecionarNoMapa($event)"
+        (viagemEscolhida)="mostrarViagem($event)"
+        (centroSolicitado)="usarCentroMapa()"
+        (fechado)="fecharPlanejador()"
+      />
+    } @else {
+      <button type="button" class="botao secundario largo" (click)="iniciarPlanejador()">
+        Planejar trajeto
+      </button>
+      @if (erro(); as mensagem) {
+        <p class="aviso erro" id="erro-linha" role="alert">{{ mensagem }}</p>
+      }
+      @if (carregando()) {
+        <p class="carregando">Abrindo a linha {{ numero() }}…</p>
+      }
 
-    @if (linha(); as l) {
-      <!-- 1. A resposta: o ponto do passageiro -->
-      @if (ponto(); as p) {
-        <app-placa [nome]="p.nome" [sentidos]="sentidosPlaca()" [salvo]="ehMeuPonto()">
-          <button acao type="button" class="trocar" (click)="trocarPonto()">Trocar</button>
-        </app-placa>
-        <p class="nota">
-          @if (idadeS() !== null) {
-            <b>Posições de há {{ idadeS() }} s.</b>
-          }
-          Tempo estimado pela distância até o ponto, a ~18 km/h.
-          @if (l.desatualizado) {
-            <span class="adv"
-              >O servidor não conseguiu atualizar; as posições podem estar velhas.</span
-            >
-          }
-        </p>
-        @if (ehMeuPonto()) {
-          <button
-            type="button"
-            data-ancora
-            class="botao secundario largo"
-            (click)="alternarMeuPonto()"
-          >
-            Esquecer este ponto
-          </button>
-        } @else {
-          <button type="button" data-ancora class="botao largo" (click)="alternarMeuPonto()">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 21s-6-5.3-6-11a6 6 0 0 1 12 0c0 5.7-6 11-6 11Z" />
-              <circle cx="12" cy="10" r="2.2" />
-            </svg>
-            Salvar como meu ponto
-          </button>
-        }
-      } @else {
-        <section class="escolher" aria-labelledby="titulo-seu-ponto">
-          <h2 id="titulo-seu-ponto" tabindex="-1">Em qual ponto você está?</h2>
-          <button
-            type="button"
-            class="botao principal"
-            data-ancora
-            (click)="pertoDeMim()"
-            [disabled]="local.buscando()"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="7" />
-              <circle cx="12" cy="12" r="2.5" />
-              <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
-            </svg>
-            {{ local.buscando() ? 'Procurando você…' : 'Paradas perto de mim' }}
-          </button>
-          @if (avisoLocal(); as msg) {
-            <p class="aviso adv" role="alert">{{ msg }}</p>
-          }
-          @if (proximos().length) {
-            <ul class="lista-paradas">
-              @for (pp of proximos(); track pp.ponto.chave) {
-                <li>
-                  <button type="button" (click)="escolherPonto(pp.ponto.chave)">
-                    <span class="texto">
-                      <strong>{{ pp.ponto.nome }}</strong>
-                      <span class="sentidos">
-                        @for (d of pp.destinos; track $index) {
-                          <span [style.--cor]="d.cor"
-                            ><i aria-hidden="true"></i>{{ d.destino }}</span
-                          >
-                        }
-                      </span>
-                    </span>
-                    <span class="dist">{{ pp.distancia }}</span>
-                  </button>
-                </li>
+      @if (linha(); as l) {
+        <!-- 1. A resposta: o ponto do passageiro -->
+        @if (ponto(); as p) {
+          <app-placa [nome]="p.nome" [sentidos]="sentidosPlaca()" [salvo]="ehMeuPonto()">
+            <button acao type="button" class="trocar" (click)="trocarPonto()">Trocar</button>
+          </app-placa>
+          <p class="nota">
+            @if (idadeS() !== null) {
+              <b>Posições de há {{ idadeS() }} s.</b>
+            }
+            @switch (fontePlaca()) {
+              @case ('nubus') {
+                Tempo previsto pela Nubus, com o GPS dos ônibus.
               }
-            </ul>
+              @case ('misto') {
+                Tempo previsto pela Nubus; onde ela não respondeu, estimado pela distância a ~18
+                km/h.
+              }
+              @default {
+                Tempo estimado pela distância até o ponto, a ~18 km/h.
+              }
+            }
+            @if (l.desatualizado) {
+              <span class="adv"
+                >O servidor não conseguiu atualizar; as posições podem estar velhas.</span
+              >
+            }
+          </p>
+          @if (ehMeuPonto()) {
+            <button
+              type="button"
+              data-ancora
+              class="botao secundario largo"
+              (click)="alternarMeuPonto()"
+            >
+              Esquecer este ponto
+            </button>
+          } @else {
+            <button type="button" data-ancora class="botao largo" (click)="alternarMeuPonto()">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 21s-6-5.3-6-11a6 6 0 0 1 12 0c0 5.7-6 11-6 11Z" />
+                <circle cx="12" cy="10" r="2.2" />
+              </svg>
+              Salvar como meu ponto
+            </button>
           }
-          <p class="dica">Ou toque numa parada no mapa.</p>
-
-          <button
-            type="button"
-            class="expandir"
-            [attr.aria-expanded]="listaAberta()"
-            aria-controls="todas-paradas"
-            (click)="listaAberta.set(!listaAberta())"
-          >
-            Todas as paradas ({{ pontos().length }})
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
-          </button>
-          @if (listaAberta()) {
-            <div id="todas-paradas" class="todas">
-              <input
-                type="search"
-                class="filtro"
-                placeholder="Buscar por rua ou bairro"
-                aria-label="Buscar parada por rua ou bairro"
-                [value]="filtroParadas()"
-                (input)="filtroParadas.set($any($event.target).value)"
-              />
+        } @else {
+          <section class="escolher" aria-labelledby="titulo-seu-ponto">
+            <h2 id="titulo-seu-ponto" tabindex="-1">Em qual ponto você está?</h2>
+            <button
+              type="button"
+              class="botao principal"
+              data-ancora
+              (click)="pertoDeMim()"
+              [disabled]="local.buscando()"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="7" />
+                <circle cx="12" cy="12" r="2.5" />
+                <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+              </svg>
+              {{ local.buscando() ? 'Procurando você…' : 'Paradas perto de mim' }}
+            </button>
+            @if (avisoLocal(); as msg) {
+              <p class="aviso adv" role="alert">{{ msg }}</p>
+            }
+            @if (proximos().length) {
               <ul class="lista-paradas">
-                @for (pp of paradasFiltradas(); track pp.ponto.chave) {
+                @for (pp of proximos(); track pp.ponto.chave) {
                   <li>
                     <button type="button" (click)="escolherPonto(pp.ponto.chave)">
                       <span class="texto">
@@ -218,172 +203,270 @@
                           }
                         </span>
                       </span>
+                      <span class="dist">{{ pp.distancia }}</span>
                     </button>
                   </li>
-                } @empty {
-                  <li class="vazio">Nenhuma parada com "{{ filtroParadas() }}" nesta linha.</li>
                 }
               </ul>
-            </div>
-          }
-        </section>
-      }
-
-      <!-- 2. A linha e a frota -->
-      <section class="linha" aria-labelledby="titulo-linha">
-        <h2 id="titulo-linha" class="visualmente-oculto">Linha {{ l.numero }}</h2>
-        <!-- A placa já mostra as cores dos sentidos; a legenda só sem ela. -->
-        @if (!ponto()) {
-          <ul class="destinos">
-            @for (it of itinerarios(); track it.codigo) {
-              <li [style.--cor]="it.cor"><i aria-hidden="true"></i>{{ it.destino }}</li>
             }
-          </ul>
-        }
-        <p class="resumo">
-          {{ resumo() }}
-          @if (calculando() > 0) {
-            <span class="leve">{{
-              calculando() === 1
-                ? '(medindo a velocidade de 1)'
-                : '(medindo a velocidade de ' + calculando() + ')'
-            }}</span>
-          }
-        </p>
-        <details class="legenda">
-          <summary>
-            Como ler o mapa
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
-          </summary>
-          <ul>
-            @for (it of itinerarios(); track it.codigo) {
-              <li [style.--cor]="it.cor">
-                <i aria-hidden="true"></i>Traçado e ônibus indo para {{ it.destino }}
-              </li>
-            }
-            <li [style.--cor]="corSemRota">
-              <i aria-hidden="true"></i>Ônibus cujo sentido ainda não deu para saber
-            </li>
-            <li>
-              <span class="simbolo seta-onibus" aria-hidden="true"></span>A seta branca aponta para
-              onde o ônibus está indo
-            </li>
-            <li>
-              <span class="simbolo rotulo-verde" aria-hidden="true">6 min</span>O ônibus que a placa
-              está seguindo
-            </li>
-            <li>
-              <span class="simbolo rosa" aria-hidden="true">S</span>Na placa, a seta e a letra
-              mostram para onde o ônibus segue no seu ponto (N, S, L, O)
-            </li>
-            <li>
-              <span class="simbolo texto" aria-hidden="true">medindo…</span>Esperando a próxima
-              posição do GPS, que chega a cada ~30 s
-            </li>
-          </ul>
-          <p class="atalhos">
-            <kbd>/</kbd> buscar · <kbd>R</kbd> linha inteira · <kbd>F</kbd> favoritar ·
-            <kbd>Esc</kbd> voltar
-          </p>
-        </details>
-      </section>
+            <p class="dica">Ou toque numa parada no mapa.</p>
 
-      @if (onibus().length) {
-        <section aria-labelledby="titulo-frota">
-          <h2 id="titulo-frota" class="titulo-secao">
             <button
               type="button"
               class="expandir"
-              [attr.aria-expanded]="frotaAberta()"
-              aria-controls="lista-frota"
-              (click)="frotaEscolha.set(!frotaAberta())"
+              [attr.aria-expanded]="listaAberta()"
+              aria-controls="todas-paradas"
+              (click)="listaAberta.set(!listaAberta())"
             >
-              {{ ponto() ? 'Ônibus que vêm pra cá' : 'Ônibus agora' }} ({{ onibus().length }})
+              Todas as paradas ({{ pontos().length }})
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
             </button>
-          </h2>
-          <ul class="frota" id="lista-frota" [hidden]="!frotaAberta()">
-            @for (o of onibus(); track o.id) {
+            @if (listaAberta()) {
+              <div id="todas-paradas" class="todas">
+                <input
+                  type="search"
+                  class="filtro"
+                  placeholder="Buscar por rua ou bairro"
+                  aria-label="Buscar parada por rua ou bairro"
+                  [value]="filtroParadas()"
+                  (input)="filtroParadas.set($any($event.target).value)"
+                />
+                <ul class="lista-paradas">
+                  @for (pp of paradasFiltradas(); track pp.ponto.chave) {
+                    <li>
+                      <button type="button" (click)="escolherPonto(pp.ponto.chave)">
+                        <span class="texto">
+                          <strong>{{ pp.ponto.nome }}</strong>
+                          <span class="sentidos">
+                            @for (d of pp.destinos; track $index) {
+                              <span [style.--cor]="d.cor"
+                                ><i aria-hidden="true"></i>{{ d.destino }}</span
+                              >
+                            }
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  } @empty {
+                    <li class="vazio">Nenhuma parada com "{{ filtroParadas() }}" nesta linha.</li>
+                  }
+                </ul>
+              </div>
+            }
+          </section>
+        }
+
+        <!-- 2. A linha e a frota -->
+        <section class="linha" aria-labelledby="titulo-linha">
+          <h2 id="titulo-linha" class="visualmente-oculto">Linha {{ l.numero }}</h2>
+          <!-- A placa já mostra as cores dos sentidos; a legenda só sem ela. -->
+          @if (!ponto()) {
+            <ul class="destinos">
+              @for (it of itinerarios(); track it.codigo) {
+                <li [style.--cor]="it.cor"><i aria-hidden="true"></i>{{ it.destino }}</li>
+              }
+            </ul>
+          }
+          <p class="resumo">
+            {{ resumo() }}
+            @if (calculando() > 0) {
+              <span class="leve">{{
+                calculando() === 1
+                  ? '(medindo a velocidade de 1)'
+                  : '(medindo a velocidade de ' + calculando() + ')'
+              }}</span>
+            }
+          </p>
+          <details class="legenda">
+            <summary>
+              Como ler o mapa
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+            </summary>
+            <ul>
+              @for (it of itinerarios(); track it.codigo) {
+                <li [style.--cor]="it.cor">
+                  <i aria-hidden="true"></i>Traçado e ônibus indo para {{ it.destino }}
+                </li>
+              }
+              <li [style.--cor]="corSemRota">
+                <i aria-hidden="true"></i>Ônibus cujo sentido ainda não deu para saber
+              </li>
               <li>
-                <button
-                  type="button"
-                  [class.selecionado]="o.id === selecionado()"
-                  [attr.aria-pressed]="o.id === selecionado()"
-                  (click)="focar(o.id)"
-                  [style.--cor]="o.cor"
-                >
-                  <i aria-hidden="true"></i>
-                  <span class="info">
-                    <strong>{{ o.destino ?? 'Sentido ainda desconhecido' }}</strong>
-                    <span class="num"
-                      >ônibus nº {{ o.id }}
-                      @if (o.chegaEm) {
-                        · <b>{{ o.chegaEm }}</b>
-                      }
+                <span class="simbolo seta-onibus" aria-hidden="true"></span>A seta branca aponta
+                para onde o ônibus está indo
+              </li>
+              <li>
+                <span class="simbolo rotulo-verde" aria-hidden="true">6 min</span>O ônibus que a
+                placa está seguindo
+              </li>
+              <li>
+                <span class="simbolo rosa" aria-hidden="true">S</span>Na placa, a seta e a letra
+                mostram para onde o ônibus segue no seu ponto (N, S, L, O)
+              </li>
+              <li>
+                <span class="simbolo texto" aria-hidden="true">medindo…</span>Esperando a próxima
+                posição do GPS, que chega a cada ~30 s
+              </li>
+            </ul>
+            <p class="atalhos">
+              <kbd>/</kbd> buscar · <kbd>R</kbd> linha inteira · <kbd>F</kbd> favoritar ·
+              <kbd>Esc</kbd> voltar
+            </p>
+          </details>
+        </section>
+
+        @if (onibus().length) {
+          <section aria-labelledby="titulo-frota">
+            <h2 id="titulo-frota" class="titulo-secao">
+              <button
+                type="button"
+                class="expandir"
+                [attr.aria-expanded]="frotaAberta()"
+                aria-controls="lista-frota"
+                (click)="frotaEscolha.set(!frotaAberta())"
+              >
+                {{ ponto() ? 'Ônibus que vêm pra cá' : 'Ônibus agora' }} ({{ onibus().length }})
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+              </button>
+            </h2>
+            <ul class="frota" id="lista-frota" [hidden]="!frotaAberta()">
+              @for (o of onibus(); track o.id) {
+                <li>
+                  <button
+                    type="button"
+                    [class.selecionado]="o.id === selecionado()"
+                    [attr.aria-pressed]="o.id === selecionado()"
+                    (click)="focar(o.id)"
+                    [style.--cor]="o.cor"
+                  >
+                    <i aria-hidden="true"></i>
+                    <span class="info">
+                      <strong>{{ o.destino ?? 'Sentido ainda desconhecido' }}</strong>
+                      <span class="num"
+                        >ônibus nº {{ o.id }}
+                        @if (o.chegaEm) {
+                          · <b>{{ o.chegaEm }}</b>
+                        }
+                      </span>
                     </span>
-                  </span>
-                  @if (o.velocidadeKmh === null) {
-                    <span class="vel leve">medindo…</span>
-                  } @else if (o.paradoMin === null) {
-                    <span class="vel"
-                      ><b>{{ o.velocidadeKmh }}</b> km/h</span
-                    >
-                  } @else {
-                    <span class="vel leve">
-                      parado{{ o.paradoMin >= 1 ? ' há ' + o.paradoMin + ' min' : '' }}
-                    </span>
-                  }
-                </button>
-              </li>
-            }
-          </ul>
+                    @if (o.velocidadeKmh === null) {
+                      <span class="vel leve">medindo…</span>
+                    } @else if (o.paradoMin === null) {
+                      <span class="vel"
+                        ><b>{{ o.velocidadeKmh }}</b> km/h</span
+                      >
+                    } @else {
+                      <span class="vel leve">
+                        parado{{ o.paradoMin >= 1 ? ' há ' + o.paradoMin + ' min' : '' }}
+                      </span>
+                    }
+                  </button>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+      } @else if (!carregando()) {
+        @if (fav.favoritas().length) {
+          <section aria-labelledby="titulo-favoritas">
+            <h2 id="titulo-favoritas" class="titulo-secao">Favoritas</h2>
+            <ul class="chips">
+              @for (n of fav.favoritas(); track n) {
+                <li>
+                  <button type="button" (click)="acompanhar(n)">
+                    {{ n }}
+                    @if (fav.destinos()[n]; as d) {
+                      <small>{{ d }}</small>
+                    }
+                  </button>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+        @if (recentes().length) {
+          <section aria-labelledby="titulo-recentes">
+            <h2 id="titulo-recentes" class="titulo-secao">Recentes</h2>
+            <ul class="chips">
+              @for (n of recentes(); track n) {
+                <li>
+                  <button type="button" class="leve" (click)="acompanhar(n)">
+                    {{ n }}
+                    @if (fav.destinos()[n]; as d) {
+                      <small>{{ d }}</small>
+                    }
+                  </button>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+        <section class="perto" aria-labelledby="titulo-perto">
+          <h2 id="titulo-perto" class="titulo-secao">Não sabe a linha?</h2>
+          <button
+            type="button"
+            class="botao secundario largo"
+            (click)="paradasPertoDeMim()"
+            [disabled]="local.buscando() || buscandoPerto()"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="7" />
+              <circle cx="12" cy="12" r="2.5" />
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+            </svg>
+            {{
+              local.buscando()
+                ? 'Procurando você…'
+                : buscandoPerto()
+                  ? 'Procurando paradas…'
+                  : 'Paradas perto de mim'
+            }}
+          </button>
+          @if (avisoPerto(); as msg) {
+            <p class="aviso adv" role="alert">{{ msg }}</p>
+          }
+          @if (pertoLista().length) {
+            <ul class="paradas-perto">
+              @for (p of pertoLista(); track p.codigo) {
+                <li [attr.data-parada]="p.codigo" [class.ativa]="p.codigo === paradaPertoSel()">
+                  <div class="cabeca">
+                    <strong>{{ p.nome }}</strong>
+                    <span class="dist">{{ p.distancia }}</span>
+                  </div>
+                  <ul class="chips" [attr.aria-label]="'Linhas que passam em ' + p.nome">
+                    @for (l of p.linhas; track l.numero) {
+                      <li>
+                        <button
+                          type="button"
+                          (click)="abrirNaParada(l.numero, p.codigo)"
+                          [attr.aria-label]="l.rotulo"
+                          [title]="l.rotulo"
+                        >
+                          {{ l.numero }}
+                          @if (l.destino) {
+                            <small>{{ l.destino }}</small>
+                          }
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                </li>
+              }
+            </ul>
+            <p class="dica">Toque numa linha para ver quanto falta para ela passar nesta parada.</p>
+          }
         </section>
-      }
-    } @else if (!carregando()) {
-      @if (fav.favoritas().length) {
-        <section aria-labelledby="titulo-favoritas">
-          <h2 id="titulo-favoritas" class="titulo-secao">Favoritas</h2>
-          <ul class="chips">
-            @for (n of fav.favoritas(); track n) {
-              <li>
-                <button type="button" (click)="acompanhar(n)">
-                  {{ n }}
-                  @if (fav.destinos()[n]; as d) {
-                    <small>{{ d }}</small>
-                  }
-                </button>
-              </li>
-            }
-          </ul>
-        </section>
-      }
-      @if (recentes().length) {
-        <section aria-labelledby="titulo-recentes">
-          <h2 id="titulo-recentes" class="titulo-secao">Recentes</h2>
-          <ul class="chips">
-            @for (n of recentes(); track n) {
-              <li>
-                <button type="button" class="leve" (click)="acompanhar(n)">
-                  {{ n }}
-                  @if (fav.destinos()[n]; as d) {
-                    <small>{{ d }}</small>
-                  }
-                </button>
-              </li>
-            }
-          </ul>
-        </section>
-      }
-      @if (!erro()) {
-        <p class="dica">
-          Digite o número que aparece no letreiro do ônibus. Depois escolha o seu ponto para ver
-          quanto falta.
-        </p>
+        @if (!erro()) {
+          <p class="dica">
+            Digite o número que aparece no letreiro do ônibus. Depois escolha o seu ponto para ver
+            quanto falta.
+          </p>
+        }
       }
     }
   </div>
 
-  <footer>Posições dos ônibus: Nubus, a cada ~15 s.</footer>
+  <footer>Dados de transporte: Nubus.</footer>
 </main>
 
 <div class="controles">
@@ -443,13 +526,17 @@
 
 <app-mapa
   class="mapa"
-  [dados]="dados()"
+  [dados]="planejando() ? null : dados()"
   [tema]="tema()"
   [selecionado]="selecionado()"
-  [pontos]="pontos()"
-  [pontoSelecionado]="pontoSel()"
+  [pontos]="planejando() ? [] : pontosMapa()"
+  [pontoSelecionado]="pontoSel() ?? paradaPertoSel()"
   [minhaPosicao]="local.posicao()"
   [rotulos]="rotulosMapa()"
+  [escolhendoTrajeto]="selecaoTrajeto() !== null"
+  [pontosTrajeto]="pontosTrajeto()"
+  [viagem]="viagemTrajeto()"
   (onibusClicado)="focar($event)"
-  (pontoClicado)="escolherPonto($event, false)"
+  (pontoClicado)="aoTocarPonto($event)"
+  (mapaClicado)="aoTocarMapa($event)"
 />

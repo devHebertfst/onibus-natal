@@ -14,11 +14,16 @@ import { Subscription } from 'rxjs';
 import { FavoritasService } from './core/favoritas.service';
 import { LinhaService, StatusConexao } from './core/linha.service';
 import { LocalizacaoService } from './core/localizacao.service';
+import { ParadaProxima } from './core/paradas.models';
+import { Oficial, mesclarPrevisoes } from './core/previsao-oficial';
+import { PrevisaoService } from './core/previsao.service';
 import { PontoFisico, acharPonto, agruparParadas, pontosProximos } from './core/pontos';
 import { TemaService } from './core/tema.service';
-import { destino, distanciaTexto } from './core/texto';
+import { destino, distanciaTexto, nomeParada } from './core/texto';
 import { COR_SEM_ROTA, DadosMapa, Mapa, corDoSentido } from './mapa/mapa';
 import { Placa, SentidoNaPlaca } from './placa/placa';
+import { LocalTrajeto, PontosTrajeto, TipoPontoTrajeto, Viagem } from './core/trajeto.models';
+import { Planejador } from './planejador/planejador';
 
 /** Alturas da gaveta no celular. */
 type Gaveta = 'baixa' | 'media' | 'alta';
@@ -39,17 +44,19 @@ const AVISO_PLACA_MS = 45_000;
 
 @Component({
   selector: 'app-root',
-  imports: [Mapa, Placa],
+  imports: [Mapa, Placa, Planejador],
   templateUrl: './app.html',
   styleUrl: './app.scss',
   host: { '(document:keydown)': 'tecla($event)' },
 })
 export class App {
   private readonly linhaService = inject(LinhaService);
+  private readonly previsaoService = inject(PrevisaoService);
   protected readonly fav = inject(FavoritasService);
   protected readonly local = inject(LocalizacaoService);
   protected readonly temaService = inject(TemaService);
   private readonly mapa = viewChild.required(Mapa);
+  private readonly planejador = viewChild(Planejador);
   private readonly campo = viewChild.required<ElementRef<HTMLInputElement>>('campo');
   private readonly host: HTMLElement = inject(ElementRef).nativeElement;
   private alturaBaixaPx = 0;
@@ -94,6 +101,19 @@ export class App {
   private avisosPlaca = new Map<string, { texto: string; ate: number }>();
   /** Fim do último toque na alça: o `click` que vem logo depois não pode alternar de novo. */
   private fimToqueAlca = 0;
+  /** Itinerário → última previsão da Nubus para o ponto escolhido. */
+  private readonly oficiais = new Map<string, Oficial>();
+  protected readonly planejando = signal(false);
+  protected readonly selecaoTrajeto = signal<TipoPontoTrajeto | null>(null);
+  protected readonly pontosTrajeto = signal<PontosTrajeto>({ origem: null, destino: null });
+  protected readonly viagemTrajeto = signal<Viagem | null>(null);
+
+  /** Tela inicial: paradas com ônibus perto do passageiro (null = ainda não buscou). */
+  protected readonly perto = signal<ParadaProxima[] | null>(null);
+  protected readonly buscandoPerto = signal(false);
+  protected readonly avisoPerto = signal<string | null>(null);
+  /** Parada da lista "perto de você" tocada no mapa. */
+  protected readonly paradaPertoSel = signal<string | null>(null);
 
   protected readonly tema = this.temaService.tema;
   protected readonly corSemRota = COR_SEM_ROTA;
@@ -106,6 +126,35 @@ export class App {
     })),
   );
   protected readonly pontos = computed(() => agruparParadas(this.linha()?.itinerarios ?? []));
+  /** Paradas no mapa: as da linha aberta ou, na tela inicial, as perto do passageiro. */
+  protected readonly pontosMapa = computed((): PontoFisico[] =>
+    this.linha()
+      ? this.pontos()
+      : (this.perto() ?? []).map((p) => ({
+          chave: p.codigo,
+          nome: nomeParada(p.descricao) || 'Parada',
+          lat: p.lat,
+          lng: p.lng,
+          sentidos: [],
+        })),
+  );
+  protected readonly pertoLista = computed(() =>
+    (this.perto() ?? []).map((p) => ({
+      ...p,
+      nome: nomeParada(p.descricao) || 'Parada sem endereço',
+      distancia: distanciaTexto(p.metros),
+      linhas: p.linhas.map((l) => ({
+        numero: l.numero,
+        destino: l.itinerarios.length ? destino(l.itinerarios[0]) : null,
+        rotulo: [`Linha ${l.numero}`, ...l.itinerarios.map(destino)].join(', '),
+      })),
+    })),
+  );
+  /** De onde vem o tempo da placa, para a nota embaixo dela dizer. */
+  protected readonly fontePlaca = computed(() => {
+    const fontes = new Set(this.sentidosPlaca().map((s) => s.fonte));
+    return fontes.size > 1 ? 'misto' : fontes.has('nubus') ? 'nubus' : 'estimativa';
+  });
   protected readonly ponto = computed(() => {
     const chave = this.pontoSel();
     return chave ? (this.pontos().find((p) => p.chave === chave) ?? null) : null;
@@ -218,7 +267,7 @@ export class App {
   // Igual por rótulo e tipo: a idade muda a cada segundo, o estado não.
   protected readonly indicador = computed(
     (): IndicadorStatus | null => {
-      if (!this.numero()) return null;
+      if (!this.numero() || this.planejando()) return null;
       if (this.offline()) return { rotulo: 'Sem internet', tipo: 'alerta' };
       // O servidor manda dados a cada ~15 s; passado de 1 min, avisa.
       const idade = this.idadeS();
@@ -269,6 +318,28 @@ export class App {
       });
     });
 
+    // Previsão da Nubus para cada sentido do ponto escolhido, enquanto ele estiver na tela.
+    effect((aoLimpar) => {
+      const n = this.numero();
+      const p = this.ponto();
+      if (!n || !p) return;
+      const assinaturas = p.sentidos.map((s) =>
+        this.previsaoService.acompanhar(n, s.itinerario, s.parada.codigo).subscribe((r) => {
+          // Falha: fica a última resposta, até ela ficar velha demais.
+          if (!r) return;
+          this.oficiais.set(`${s.itinerario}|${s.parada.codigo}`, {
+            chegadas: r.chegadas,
+            recebidoEm: Date.now(),
+          });
+          this.tique();
+        }),
+      );
+      aoLimpar(() => {
+        assinaturas.forEach((a) => a.unsubscribe());
+        this.oficiais.clear();
+      });
+    });
+
     const conexao = () => this.offline.set(!navigator.onLine);
     addEventListener('online', conexao);
     addEventListener('offline', conexao);
@@ -289,6 +360,7 @@ export class App {
   protected acompanhar(valor: string): void {
     const numero = valor.trim().toUpperCase();
     if (!numero) return;
+    if (this.planejando()) this.fecharPlanejador();
     if (numero === this.numero()) return;
 
     this.assinatura?.unsubscribe();
@@ -367,6 +439,7 @@ export class App {
   protected escolherPonto(chave: string, mover = true): void {
     const p = this.pontos().find((x) => x.chave === chave);
     if (!p) return;
+    if (chave !== this.pontoSel()) this.oficiais.clear();
     this.pontoSel.set(chave);
     this.chegandoAnunciado.clear();
     this.esquecerSeguidos();
@@ -432,6 +505,115 @@ export class App {
       requestAnimationFrame(() => this.mapa().enquadrarVarios(pontos, this.folgasMapa('media')));
       this.anuncio.set(`${this.proximos().length} paradas perto de você`);
     }
+  }
+
+  /** Tela inicial: paradas com ônibus perto do passageiro, sem precisar saber a linha. */
+  protected async paradasPertoDeMim(): Promise<void> {
+    this.avisoPerto.set(null);
+    const problema = await this.local.pedir();
+    const pos = this.local.posicao();
+    if (problema || !pos) {
+      this.avisoPerto.set(problema);
+      return;
+    }
+    this.buscandoPerto.set(true);
+    try {
+      const lista = await this.previsaoService.proximas(pos.lat, pos.lng);
+      this.perto.set(lista);
+      this.paradaPertoSel.set(null);
+      if (lista.length === 0) {
+        this.avisoPerto.set('Nenhuma parada com ônibus a menos de 600 m de você.');
+        return;
+      }
+      this.gaveta.set('media');
+      const pontos: [number, number][] = [
+        [pos.lat, pos.lng],
+        ...lista.slice(0, 4).map((p): [number, number] => [p.lat, p.lng]),
+      ];
+      requestAnimationFrame(() => this.mapa().enquadrarVarios(pontos, this.folgasMapa('media')));
+      this.anuncio.set(
+        lista.length === 1 ? '1 parada perto de você' : `${lista.length} paradas perto de você`,
+      );
+    } catch {
+      this.avisoPerto.set(
+        'A central de dados dos ônibus não respondeu. Tente de novo em instantes.',
+      );
+    } finally {
+      this.buscandoPerto.set(false);
+    }
+  }
+
+  protected iniciarPlanejador(): void {
+    this.planejando.set(true);
+    this.gaveta.set('media');
+  }
+
+  protected fecharPlanejador(): void {
+    this.planejando.set(false);
+    this.selecaoTrajeto.set(null);
+    this.pontosTrajeto.set({ origem: null, destino: null });
+    this.viagemTrajeto.set(null);
+    this.gaveta.set('media');
+  }
+
+  protected selecionarNoMapa(tipo: TipoPontoTrajeto | null): void {
+    this.selecaoTrajeto.set(tipo);
+    this.gaveta.set(tipo ? 'baixa' : 'media');
+    this.anuncio.set(
+      tipo ? `Escolha ${tipo === 'origem' ? 'a origem' : 'o destino'} no mapa` : 'Ponto escolhido',
+    );
+  }
+
+  protected aoTocarMapa(ponto: LocalTrajeto): void {
+    const tipo = this.selecaoTrajeto();
+    if (tipo) this.planejador()?.definirPonto(tipo, ponto);
+  }
+
+  protected usarCentroMapa(): void {
+    const centro = this.mapa().centro();
+    if (centro) this.aoTocarMapa(centro);
+  }
+
+  protected mostrarViagem(viagem: Viagem | null): void {
+    this.viagemTrajeto.set(viagem);
+    if (!viagem) return;
+    this.gaveta.set('media');
+    requestAnimationFrame(() => {
+      this.mapa().enquadrarVarios(
+        [
+          ...viagem.trechos.flatMap((t) => t.tracado),
+          ...viagem.trechos.flatMap((t): [number, number][] => [
+            [t.partida.lat, t.partida.lng],
+            [t.chegada.lat, t.chegada.lng],
+          ]),
+        ],
+        this.folgasMapa('media'),
+      );
+      this.host
+        .querySelector('app-planejador .resultados')
+        ?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+  }
+
+  /** Abre a linha já com o ponto escolhido (vindo da lista "perto de você"). */
+  protected abrirNaParada(numero: string, codigoParada: string): void {
+    this.paradaPendente = codigoParada;
+    this.acompanhar(numero);
+  }
+
+  /** Toque numa parada do mapa: escolhe o ponto da linha ou, sem linha, mostra a parada na lista. */
+  protected aoTocarPonto(chave: string): void {
+    if (this.linha()) {
+      this.escolherPonto(chave, false);
+      return;
+    }
+    this.paradaPertoSel.set(chave);
+    if (this.gaveta() === 'baixa') this.gaveta.set('media');
+    requestAnimationFrame(() =>
+      this.host
+        .querySelector(`[data-parada="${CSS.escape(chave)}"]`)
+        ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }),
+    );
   }
 
   protected async centralizarEmMim(): Promise<void> {
@@ -504,7 +686,8 @@ export class App {
     const alvo = e.target as HTMLElement | null;
     const digitando = alvo?.tagName === 'INPUT';
     if (e.key === 'Escape') {
-      if (this.listaAberta()) this.listaAberta.set(false);
+      if (this.planejando()) this.fecharPlanejador();
+      else if (this.listaAberta()) this.listaAberta.set(false);
       else if (this.selecionado()) this.selecionado.set(null);
       else if (this.pontoSel()) this.trocarPonto();
       if (digitando) alvo?.blur();
@@ -573,13 +756,19 @@ export class App {
     const agora = Date.now();
     const sentidos = p.sentidos.map((s): SentidoNaPlaca => {
       const it = its.find((i) => i.codigo === s.itinerario);
-      const previsoes = this.mapa().previsoes(s);
+      const { previsoes, fonte, tabela } = mesclarPrevisoes(
+        this.mapa().previsoes(s),
+        this.oficiais.get(`${s.itinerario}|${s.parada.codigo}`) ?? null,
+        agora,
+      );
       return {
         itinerario: s.itinerario,
         destino: it?.destino ?? s.itinerario,
         cor: it?.cor ?? COR_SEM_ROTA,
         rumo: this.mapa().rumo(s),
         previsoes,
+        fonte,
+        tabela,
         aviso: this.acompanharSeguido(s.itinerario, previsoes, agora),
       };
     });

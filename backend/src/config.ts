@@ -34,6 +34,22 @@ export const config = {
   /** Proteção da API de origem: máximo de linhas acompanhadas ao mesmo tempo. */
   maxLinhasAcompanhadas: num(process.env.MAX_LINHAS, 40),
 
+  /**
+   * Previsão de chegada numa parada: quem pedir a mesma parada nesse
+   * intervalo recebe a mesma resposta, sem nova consulta à API.
+   */
+  previsaoTtlMs: num(process.env.PREVISAO_TTL_MS, 15_000),
+
+  /** Paradas da cidade e quais linhas passam em cada uma: muda pouco. */
+  paradasTtlMs: num(process.env.PARADAS_TTL_MS, 24 * 60 * 60_000),
+
+  /**
+   * Monta o índice de paradas ao subir o servidor (~120 consultas), para o
+   * primeiro "paradas perto de mim" não esperar. Desligado nos testes.
+   */
+  aquecerParadas:
+    process.env.AQUECER_PARADAS !== 'false' && !process.env.VITEST,
+
   /** A lista de itinerários de uma linha quase nunca muda: cache longo. */
   itinerariosTtlMs: num(process.env.ITINERARIOS_TTL_MS, 6 * 60 * 60_000),
 

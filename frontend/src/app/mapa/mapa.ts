@@ -5,6 +5,7 @@ import { Posicao } from '../core/localizacao.service';
 import { Linha } from '../core/linha.models';
 import { ParadaNoSentido, PontoFisico } from '../core/pontos';
 import { Tema } from '../core/tema.service';
+import { LocalTrajeto, PontosTrajeto, Viagem } from '../core/trajeto.models';
 import { Frota } from './dead-reckoning/frota';
 import { Previsao, preverChegadas, rumoNaParada } from './dead-reckoning/previsao';
 
@@ -86,6 +87,10 @@ export class Mapa {
   readonly rotulos = input<Record<string, string>>({});
   readonly onibusClicado = output<string>();
   readonly pontoClicado = output<string>();
+  readonly mapaClicado = output<LocalTrajeto>();
+  readonly escolhendoTrajeto = input(false);
+  readonly pontosTrajeto = input<PontosTrajeto>({ origem: null, destino: null });
+  readonly viagem = input<Viagem | null>(null);
 
   private readonly tiles: Record<Tema, L.LayerGroup> = {
     noite: L.layerGroup([esri('World_Dark_Gray_Base'), esri('World_Dark_Gray_Reference')]),
@@ -103,6 +108,7 @@ export class Mapa {
   private readonly camadaTracado = L.layerGroup();
   private readonly camadaParadas = L.layerGroup();
   private readonly camadaOnibus = L.layerGroup();
+  private readonly camadaViagem = L.layerGroup();
   private readonly marcadores = new Map<string, Marcador>();
   private readonly marcadoresPonto = new Map<string, L.Marker>();
   private eu?: L.Marker;
@@ -118,6 +124,16 @@ export class Mapa {
   private raf = 0;
 
   constructor() {
+    effect(() => {
+      const viagem = this.viagem();
+      const pontos = this.pontosTrajeto();
+      this.tema();
+      if (this.mapa) this.desenharViagem(viagem, pontos);
+    });
+    effect(() => {
+      const escolhendo = this.escolhendoTrajeto();
+      if (this.mapa) this.mapa.getContainer().style.cursor = escolhendo ? 'crosshair' : '';
+    });
     effect(() => {
       const dados = this.dados();
       if (this.mapa) this.aplicar(dados);
@@ -165,6 +181,17 @@ export class Mapa {
     this.camadaTracado.addTo(mapa);
     this.camadaParadas.addTo(mapa);
     this.camadaOnibus.addTo(mapa);
+    this.camadaViagem.addTo(mapa);
+    mapa.on('click', (e: L.LeafletMouseEvent) => {
+      if (this.escolhendoTrajeto())
+        this.mapaClicado.emit({
+          lat: e.latlng.lat,
+          lng: e.latlng.lng,
+          nome: 'Local escolhido no mapa',
+        });
+    });
+    this.desenharViagem(this.viagem(), this.pontosTrajeto());
+    mapa.getContainer().style.cursor = this.escolhendoTrajeto() ? 'crosshair' : '';
     this.aplicar(this.dados());
     this.desenharPontos(this.pontos());
     this.desenharEu(this.minhaPosicao());
@@ -180,6 +207,47 @@ export class Mapa {
   /** Leva o mapa até um ponto (parada, posição do passageiro). */
   irPara(lat: number, lng: number): void {
     this.mapa?.flyTo([lat, lng], Math.max(this.mapa.getZoom(), 16));
+  }
+
+  centro(): LocalTrajeto | null {
+    const centro = this.mapa?.getCenter();
+    return centro ? { lat: centro.lat, lng: centro.lng, nome: 'Local escolhido no mapa' } : null;
+  }
+
+  private desenharViagem(viagem: Viagem | null, pontos: PontosTrajeto): void {
+    this.camadaViagem.clearLayers();
+    let bus = 0;
+    for (const trecho of viagem?.trechos ?? []) {
+      if (trecho.tracado.length < 2) continue;
+      L.polyline(trecho.tracado, {
+        color:
+          trecho.modo === 'BUS'
+            ? corDoSentido(bus++, this.tema())
+            : this.tema() === 'noite'
+              ? '#f1f3f4'
+              : '#3a4146',
+        weight: trecho.modo === 'BUS' ? 6 : 4,
+        dashArray: trecho.modo === 'WALK' ? '6 8' : undefined,
+        interactive: false,
+      }).addTo(this.camadaViagem);
+    }
+    for (const [letra, ponto] of [
+      ['A', pontos.origem],
+      ['B', pontos.destino],
+    ] as const) {
+      if (!ponto) continue;
+      L.marker([ponto.lat, ponto.lng], {
+        icon: L.divIcon({
+          className: 'trajeto-ponto',
+          html: `<span>${letra}</span>`,
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
+        }),
+        title: `${letra === 'A' ? 'Origem' : 'Destino'}: ${ponto.nome}`,
+        interactive: false,
+        zIndexOffset: 2200,
+      }).addTo(this.camadaViagem);
+    }
   }
 
   /**

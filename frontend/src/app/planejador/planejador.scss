@@ -1,0 +1,136 @@
+:host {
+  display: block;
+}
+section,
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cabeca,
+.acoes {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cabeca {
+  justify-content: space-between;
+}
+h2,
+h3,
+p {
+  margin: 0;
+}
+h2 {
+  font-size: 20px;
+  font-weight: 800;
+}
+h3,
+legend,
+label {
+  font-size: 16px;
+  font-weight: 700;
+}
+fieldset {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--linha-forte);
+  border-radius: var(--raio);
+}
+fieldset p {
+  margin: 0 0 10px;
+  color: var(--texto-2);
+}
+button {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 2px solid var(--linha-forte);
+  border-radius: var(--raio);
+  background: var(--chao);
+  font-weight: 700;
+  cursor: pointer;
+}
+button:hover {
+  background: var(--chao-2);
+}
+.principal,
+button[aria-pressed='true'] {
+  background: var(--placa);
+  color: var(--placa-texto);
+  border-color: var(--placa);
+}
+button:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+input {
+  min-width: 0;
+  flex: 1;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 8px;
+  border: 1px solid var(--linha-forte);
+  border-radius: var(--raio);
+  background: var(--chao);
+}
+.nota {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--texto-3);
+}
+.selecao {
+  border-left: 4px solid var(--placa);
+  padding: 10px;
+  background: var(--chao-2);
+}
+.selecao p {
+  margin-bottom: 8px;
+}
+.aviso {
+  padding: 12px;
+  border-left: 4px solid var(--reg);
+  background: var(--reg-fundo);
+}
+.resultados {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.alternativas {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.alternativa {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.alternativa span {
+  font-size: 14px;
+  font-weight: 400;
+}
+.trechos {
+  margin: 0;
+  padding-left: 24px;
+}
+.trechos li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--linha);
+}
+.trechos strong,
+.trechos span {
+  display: block;
+  margin-bottom: 4px;
+}
+.trechos span {
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--texto-2);
+}

@@ -90,7 +90,7 @@ versão 22 acompanha o Angular 22.
 
 `GET /api/linhas/:numero`: na primeira chamada, consulta a API externa e passa
 a acompanhar a linha. Nas seguintes, responde da memória. A linha deixa de ser
-acompanhada após 5 min sem acessos.
+acompanhada após 30 min sem acessos e sem conexões SSE.
 
 ```jsonc
 {
@@ -130,6 +130,35 @@ curl -N http://localhost:3000/api/linhas/33/stream
 ```
 
 `GET /api/linhas` lista as linhas acompanhadas no momento.
+
+### Previsão da Nubus, paradas próximas e planejamento
+
+- `GET /api/linhas/:numero/previsao?itinerario=<codigo>&parada=<codigo>`:
+  previsão de chegada da Nubus, com cache de 15 s e consultas simultâneas
+  compartilhadas. Valida se a parada pertence ao itinerário. A placa usa os
+  horários da Nubus e a contagem de paradas do mapa; após 90 s sem resposta
+  nova, volta à estimativa local. Viagens da tabela aparecem separadas dos
+  ônibus com GPS, e horários sem fuso são interpretados como hora de Natal.
+- `GET /api/paradas/proximas?lat=-5.8&lng=-35.2`: até 8 paradas em um raio de
+  600 m, com as linhas e os sentidos que passam nelas. O parâmetro opcional
+  `raio` aceita até 1500 m. O backend monta um índice de paradas e itinerários,
+  compartilhado por todos os usuários e atualizado a cada 24 h. O aquecimento
+  começa ao iniciar o servidor; a primeira busca pode aguardar sua conclusão.
+- `GET /api/trajetos?from_lat=-5.7945&from_lng=-35.211&to_lat=-5.835&to_lng=-35.207&datetime=2026-10-08T08:00`:
+  alternativas de viagem com horários, trechos a pé e de ônibus e traçados
+  decodificados. `datetime` é opcional e usa a hora de Natal, independente do
+  fuso do servidor. Sem ele, planeja a saída agora. Ausência de alternativas
+  devolve `viagens: []`; erro da central devolve HTTP 502.
+
+Na tela inicial, **Paradas perto de mim** pede a localização e permite abrir
+uma linha já na parada escolhida. **Planejar trajeto** permite escolher os
+pontos A e B no mapa (ou usar a localização atual como origem), ajustar a hora
+de saída e comparar alternativas. A opção **Usar centro do mapa** permite
+escolher os pontos com teclado. No mapa, caminhada é tracejada e ônibus é
+linha contínua; A e B identificam origem e destino. Horários do planejador são
+da tabela, não posições ao vivo. Se a API retornar só caminhada, a tela avisa;
+se faltar geometria, o app não inventa um traçado. A seleção de destinos usa o
+mapa, sem busca de endereços nesta versão.
 
 ## Decisões de projeto
 
@@ -212,8 +241,8 @@ O processo de design (brief, contrato de direção, auditoria) está em
 
 ## Próximas fases
 
-- **Busca por parada e planejador de rota** (a pé + ônibus): saber quais linhas
-  passam em cada parada exige um índice parada → linhas no backend.
+- **Busca de destinos por endereço:** complementar a escolha de origem e
+  destino no mapa com geocodificação.
 - **Service worker** para o app instalado abrir mesmo com internet fraca.
 - **PostgreSQL + PostGIS**: gravar as posições (`geography(Point)`) para
   histórico, tempos de viagem e velocidades médias por trecho.

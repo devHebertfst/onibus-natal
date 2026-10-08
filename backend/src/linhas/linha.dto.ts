@@ -44,3 +44,27 @@ export interface LinhaDto {
   itinerarios: ItinerarioDto[];
   onibus: OnibusDto[];
 }
+
+/** Um ônibus (ou uma viagem da tabela) a caminho da parada. */
+export interface ChegadaDto {
+  /** Veículo; null nas viagens da tabela, que ainda não têm ônibus com GPS. */
+  onibus: string | null;
+  /** true: ônibus com GPS ligado; false: horário programado da tabela. */
+  aoVivo: boolean;
+  /** Horário previsto de chegada (ISO 8601). */
+  chegaEm: string;
+  /** Distância do ônibus até a parada pelo trajeto (m); null na tabela. */
+  metros: number | null;
+  /** Horário da posição de GPS que a Nubus usou na conta; null na tabela. */
+  gpsEm: string | null;
+}
+
+/** Resposta de `GET /api/linhas/:numero/previsao?itinerario=&parada=`. */
+export interface PrevisaoDto {
+  itinerario: string;
+  parada: string;
+  /** Quando o backend consultou a API de transporte. */
+  consultadoEm: string;
+  /** Do que chega primeiro ao que chega por último. */
+  chegadas: ChegadaDto[];
+}

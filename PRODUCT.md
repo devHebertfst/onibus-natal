@@ -39,11 +39,13 @@ O que o separa do app oficial, do Moovit e do Google Maps:
 
 - **Sem conta nem login.** Tudo funciona anonimamente; dados do usuário ficam só no navegador. Restrição confirmada.
 - **Legível sob sol forte e operável com uma mão.** Restrição confirmada.
-- Previsão de chegada: distância pelo traçado até a parada a 18 km/h (velocidade comercial média). É uma estimativa e deve ser apresentada como tal.
+- Previsão de chegada: prioriza os horários retornados pela Nubus; sem resposta recente, usa distância pelo traçado até a parada a 18 km/h. A placa informa a fonte e distingue viagens da tabela de ônibus com GPS.
+- Paradas próximas: localização → paradas até 600 m → linhas que passam ali → placa da linha no ponto escolhido.
+- Planejamento A→B: origem pela localização ou pelo mapa, destino pelo mapa, saída agora ou em horário escolhido. Mostra alternativas, caminhada, ônibus, horários de tabela e traçado. Sem busca de endereços nesta versão.
 - Mapas Esri Dark/Light Gray, sem chave de API.
 - Backend acompanha no máximo 40 linhas (até 4 consultas em paralelo); a API de origem nunca recebe consultas por cliente.
 - Terminologia: **linha** (número, ex.: 33), **itinerário** (variante/sentido de uma linha), **traçado**, **parada**, **frota**, **sentido** (ida/volta).
-- Próximas fases previstas (não implementadas): busca por parada e planejador de rota a pé + ônibus, service worker para internet fraca, histórico em PostgreSQL/PostGIS, tempo de parada no dead reckoning.
+- Próximas fases previstas (não implementadas): busca de destinos por endereço, service worker para internet fraca, histórico em PostgreSQL/PostGIS, tempo de parada no dead reckoning.
 
 ## Brand Commitments
 

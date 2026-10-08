@@ -33,3 +33,22 @@ export interface Linha {
   itinerarios: Itinerario[];
   onibus: Onibus[];
 }
+
+/** Espelho de `ChegadaDto`: um ônibus (ou uma viagem da tabela) a caminho da parada. */
+export interface Chegada {
+  /** null nas viagens da tabela (ainda sem ônibus com GPS). */
+  onibus: string | null;
+  aoVivo: boolean;
+  /** ISO 8601. */
+  chegaEm: string;
+  metros: number | null;
+  gpsEm: string | null;
+}
+
+/** Espelho de `PrevisaoDto`: a previsão da Nubus para uma parada de um itinerário. */
+export interface PrevisaoOficial {
+  itinerario: string;
+  parada: string;
+  consultadoEm: string;
+  chegadas: Chegada[];
+}

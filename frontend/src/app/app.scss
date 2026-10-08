@@ -1039,3 +1039,50 @@ footer {
     bottom: calc(var(--altura-gaveta, 64dvh) + 12px);
   }
 }
+
+/* Tela inicial: paradas perto do passageiro e as linhas de cada uma. */
+.perto {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.paradas-perto {
+  > li {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 4px;
+    scroll-margin: 12px;
+  }
+
+  > li + li {
+    border-top: 1px solid var(--linha);
+  }
+
+  /* Tocada no mapa: a mesma marca do ponto escolhido. */
+  > li.ativa {
+    box-shadow: inset 4px 0 0 var(--placa);
+    padding-left: 12px;
+  }
+
+  .cabeca {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  strong {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+
+  .dist {
+    margin-left: auto;
+    flex: none;
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+}

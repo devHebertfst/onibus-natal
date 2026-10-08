@@ -1,0 +1,144 @@
+<section aria-labelledby="titulo-trajeto">
+  <div class="cabeca">
+    <h2 id="titulo-trajeto">Como chegar?</h2>
+    <button type="button" class="secundario" (click)="fechado.emit()">Voltar</button>
+  </div>
+  <form (submit)="$event.preventDefault(); buscar()" [attr.aria-busy]="buscando()">
+    <fieldset>
+      <legend>De onde você sai?</legend>
+      <p>{{ origem()?.nome ?? 'Escolha o ponto de partida' }}</p>
+      <div class="acoes">
+        <button
+          type="button"
+          class="secundario"
+          (click)="usarLocalizacao()"
+          [disabled]="local.buscando()"
+        >
+          {{ local.buscando() ? 'Procurando você…' : 'Minha localização' }}
+        </button>
+        <button
+          type="button"
+          class="secundario"
+          (click)="selecionar('origem')"
+          [attr.aria-pressed]="selecionando() === 'origem'"
+        >
+          Escolher no mapa
+        </button>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Onde quer chegar?</legend>
+      <p>{{ destino()?.nome ?? 'Escolha o destino' }}</p>
+      <button
+        type="button"
+        class="secundario"
+        (click)="selecionar('destino')"
+        [attr.aria-pressed]="selecionando() === 'destino'"
+      >
+        Escolher no mapa
+      </button>
+    </fieldset>
+    @if (selecionando(); as tipo) {
+      <div class="selecao" role="status" data-ancora>
+        <p>
+          Toque no mapa para escolher
+          {{ tipo === 'origem' ? 'de onde você sai' : 'onde quer chegar' }}.
+        </p>
+        <div class="acoes">
+          <button type="button" class="secundario" (click)="centroSolicitado.emit()">
+            Usar centro do mapa
+          </button>
+          <button type="button" class="secundario" (click)="selecionar(null)">Cancelar</button>
+        </div>
+      </div>
+    }
+    <label for="partida-trajeto">Quando você sai?</label>
+    <div class="acoes">
+      <input
+        id="partida-trajeto"
+        type="datetime-local"
+        required
+        [value]="partida()"
+        (change)="mudarHorario($any($event.target).value)"
+        aria-describedby="fuso-trajeto"
+      />
+      <button type="button" class="secundario" (click)="agora()">Agora</button>
+    </div>
+    <p class="nota" id="fuso-trajeto">Horário de Natal.</p>
+    <button
+      type="submit"
+      class="principal"
+      [disabled]="!origem() || !destino() || !partida() || buscando()"
+      data-ancora
+    >
+      {{ buscando() ? 'Procurando trajetos…' : 'Buscar trajeto' }}
+    </button>
+    @if (aviso(); as mensagem) {
+      <p class="aviso" role="alert">{{ mensagem }}</p>
+    }
+  </form>
+  @if (viagens(); as lista) {
+    <div class="resultados" aria-live="polite">
+      @if (!lista.length) {
+        <p>
+          Nenhum trajeto encontrado para esses pontos e horário. Tente outro horário ou pontos
+          próximos.
+        </p>
+      } @else {
+        <h3>{{ lista.length === 1 ? 'Trajeto encontrado' : 'Escolha um trajeto' }}</h3>
+        @if (soCaminhada()) {
+          <p class="nota">A central retornou apenas trajetos a pé para esses pontos e horário.</p>
+        }
+        <ul class="alternativas">
+          @for (v of lista; track $index) {
+            <li>
+              <button
+                type="button"
+                class="secundario alternativa"
+                [attr.aria-pressed]="indice() === $index"
+                (click)="escolher($index)"
+              >
+                <strong>{{ minutos(v.duracaoSegundos) }} min · chega às {{ hora(v.fim) }}</strong>
+                <span
+                  >{{
+                    v.trechos.length === 1 && v.trechos[0].modo === 'WALK'
+                      ? 'A pé'
+                      : 'Ônibus e caminhada'
+                  }}
+                  · {{ distancia(v.caminhadaMetros) }} a pé</span
+                >
+              </button>
+            </li>
+          }
+        </ul>
+        @if (escolhida(); as v) {
+          <ol class="trechos">
+            @for (t of v.trechos; track $index) {
+              <li>
+                <strong
+                  >{{ t.modo === 'WALK' ? 'Caminhe' : 'Pegue o ônibus'
+                  }}{{ t.linha ? ' ' + t.linha : '' }}</strong
+                >
+                @if (t.letreiro) {
+                  <span>Sentido {{ t.letreiro }}</span>
+                }
+                <span>{{ t.partida.nome }} → {{ t.chegada.nome }}</span>
+                <span
+                  >{{ hora(t.inicio) }}–{{ hora(t.fim) }} · {{ minutos(t.duracaoSegundos) }} min ·
+                  {{ distancia(t.metros) }}</span
+                >
+                @if (t.tracado.length < 2) {
+                  <span>Traçado deste trecho não informado pela central.</span>
+                }
+              </li>
+            }
+          </ol>
+          <p class="nota">
+            Planejamento da Nubus. Os horários de ônibus seguem a tabela e podem mudar; não são
+            posições ao vivo. No mapa, caminhada é tracejada e ônibus é linha contínua.
+          </p>
+        }
+      }
+    </div>
+  }
+</section>

@@ -4,6 +4,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module.js';
 import { NubusClient } from './../src/nubus/nubus.client.js';
+import { respostaTrajeto } from './fixtures/trajeto.js';
 
 describe('GET /api/linhas/:numero (e2e)', () => {
   let app: INestApplication<App>;
@@ -15,14 +16,41 @@ describe('GET /api/linhas/:numero (e2e)', () => {
       .overrideProvider(NubusClient)
       .useValue({
         pesquisarRotas: async (n: string) =>
-          n === '33'
-            ? [{ codigoItinerario: 1, descricaoItinerario: 'IDA' }]
+          n === '33' || n === '3'
+            ? [
+                {
+                  codigoItinerario: 1,
+                  descricaoItinerario: 'IDA',
+                  codigolinha: 'CDNO-33',
+                  descricaolinha: 'O-33',
+                },
+              ]
             : [],
         paradasEspecifica: async () => ({
           pontos: '-5.80 -35.20|-5.81 -35.21',
-          paradas: [],
+          paradas: [
+            {
+              codigo: 'PARADA#1',
+              Lat: -5.8,
+              Long: -35.2,
+              descricao: 'Rua A',
+              ordem: 1,
+            },
+          ],
           carros: [{ carro: 'X', Lat: -5.805, Long: -35.205 }],
         }),
+        listarParadas: async () => [
+          { codigo: 'PARADA#1', Lat: -5.8, Long: -35.2, descricao: 'Rua A' },
+        ],
+        previsaoParada: async () => [
+          {
+            Carro: 'X',
+            tipo: 'On-line',
+            Minutos: 5,
+            distanciaVeiculoMetros: 1500,
+          },
+        ],
+        planejarTrajeto: async () => respostaTrajeto(),
       })
       .compile();
 
@@ -37,6 +65,66 @@ describe('GET /api/linhas/:numero (e2e)', () => {
       .expect(200);
     expect(res.body.onibus).toHaveLength(1);
     expect(res.body.itinerarios[0].tracado).toHaveLength(2);
+  });
+
+  it('consulta a previsão oficial e valida o vínculo da parada com o itinerário', async () => {
+    const r = await request(app.getHttpServer())
+      .get('/api/linhas/33/previsao')
+      .query({ itinerario: '1', parada: 'PARADA#1' })
+      .expect(200);
+    expect(r.body.chegadas[0]).toMatchObject({
+      onibus: 'X',
+      aoVivo: true,
+      metros: 1500,
+    });
+    await request(app.getHttpServer())
+      .get('/api/linhas/33/previsao')
+      .query({ itinerario: '1', parada: 'PARADA#999' })
+      .expect(404);
+    await request(app.getHttpServer())
+      .get('/api/linhas/33/previsao')
+      .expect(400);
+  });
+
+  it('encontra paradas e linhas próximas e recusa coordenadas vazias', async () => {
+    const r = await request(app.getHttpServer())
+      .get('/api/paradas/proximas')
+      .query({ lat: -5.8, lng: -35.2 })
+      .expect(200);
+    expect(r.body[0]).toMatchObject({
+      codigo: 'PARADA#1',
+      linhas: [{ numero: '33' }],
+    });
+    await request(app.getHttpServer())
+      .get('/api/paradas/proximas')
+      .query({ lat: '', lng: -35.2 })
+      .expect(400);
+    await request(app.getHttpServer()).get('/api/paradas/proximas').expect(400);
+  });
+
+  it('planeja caminhada e ônibus e valida os parâmetros HTTP', async () => {
+    const query = {
+      from_lat: -5.7945,
+      from_lng: -35.211,
+      to_lat: -5.835,
+      to_lng: -35.207,
+      datetime: '2026-10-08T08:00',
+    };
+    const r = await request(app.getHttpServer())
+      .get('/api/trajetos')
+      .query(query)
+      .expect(200);
+    expect(
+      r.body.viagens[0].trechos.map((t: { modo: string }) => t.modo),
+    ).toEqual(['WALK', 'BUS']);
+    await request(app.getHttpServer())
+      .get('/api/trajetos')
+      .query({ ...query, to_lat: '' })
+      .expect(400);
+    await request(app.getHttpServer())
+      .get('/api/trajetos')
+      .query({ ...query, datetime: 'amanhã' })
+      .expect(400);
   });
 
   it('404 para linha inexistente, 400 para número inválido', async () => {
