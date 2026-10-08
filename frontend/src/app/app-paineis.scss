@@ -52,9 +52,12 @@
   .numero-salvo {
     display: grid;
     place-items: center;
+    flex: none;
     min-width: 48px;
     height: 44px;
     padding: 0 6px;
+    box-sizing: border-box;
+    white-space: nowrap;
     border-radius: 6px;
     background: var(--placa);
     color: var(--placa-texto);

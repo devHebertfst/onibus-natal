@@ -29,9 +29,15 @@
     b {
       display: grid;
       place-items: center;
+      /* Não encolhe: números como 3008 cabem inteiros. */
+      flex: none;
       min-width: 48px;
       height: 44px;
+      padding: 0 8px;
+      box-sizing: border-box;
       border-radius: 6px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
       background: var(--placa);
       color: var(--placa-texto);
       font-size: 22px;
