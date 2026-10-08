@@ -14,11 +14,18 @@ import { Subscription } from 'rxjs';
 import { FavoritasService } from './core/favoritas.service';
 import { LinhaService, StatusConexao } from './core/linha.service';
 import { LocalizacaoService } from './core/localizacao.service';
+import { ParadaProxima } from './core/paradas.models';
+import { Oficial, mesclarPrevisoes } from './core/previsao-oficial';
+import { PrevisaoService } from './core/previsao.service';
 import { PontoFisico, acharPonto, agruparParadas, pontosProximos } from './core/pontos';
 import { TemaService } from './core/tema.service';
-import { destino, distanciaTexto } from './core/texto';
+import { destino, distanciaTexto, nomeParada } from './core/texto';
 import { COR_SEM_ROTA, DadosMapa, Mapa, corDoSentido } from './mapa/mapa';
 import { Placa, SentidoNaPlaca } from './placa/placa';
+import { LocalTrajeto, PontosTrajeto, TipoPontoTrajeto, Viagem } from './core/trajeto.models';
+import { Planejador } from './planejador/planejador';
+import { CatalogoService, LinhaCatalogo } from './core/catalogo.service';
+import { Menu, MENUS, Navegacao } from './navegacao/navegacao';
 
 /** Alturas da gaveta no celular. */
 type Gaveta = 'baixa' | 'media' | 'alta';
@@ -39,17 +46,24 @@ const AVISO_PLACA_MS = 45_000;
 
 @Component({
   selector: 'app-root',
-  imports: [Mapa, Placa],
+  imports: [Mapa, Placa, Planejador, Navegacao],
   templateUrl: './app.html',
-  styleUrl: './app.scss',
+  styleUrls: ['./app.scss', './app-paineis.scss', './app-mapa-ui.scss', './app-catalogo.scss'],
   host: { '(document:keydown)': 'tecla($event)' },
 })
 export class App {
   private readonly linhaService = inject(LinhaService);
+  private readonly previsaoService = inject(PrevisaoService);
+  private readonly catalogoService = inject(CatalogoService);
+  private consultaCatalogo?: AbortController;
+  protected readonly catalogo = signal<LinhaCatalogo[]>([]);
+  protected readonly carregandoCatalogo = signal(false);
+  protected readonly erroCatalogo = signal<string | null>(null);
   protected readonly fav = inject(FavoritasService);
   protected readonly local = inject(LocalizacaoService);
   protected readonly temaService = inject(TemaService);
   private readonly mapa = viewChild.required(Mapa);
+  private readonly planejador = viewChild(Planejador);
   private readonly campo = viewChild.required<ElementRef<HTMLInputElement>>('campo');
   private readonly host: HTMLElement = inject(ElementRef).nativeElement;
   private alturaBaixaPx = 0;
@@ -63,8 +77,31 @@ export class App {
   protected readonly erro = signal<string | null>(null);
   protected readonly carregando = signal(false);
   protected readonly status = signal<StatusConexao | null>(null);
-  /** Na tela inicial a gaveta começa baixa: o mapa aparece e o campo fica à mão. */
-  protected readonly gaveta = signal<Gaveta>('baixa');
+  /** A busca abre completa; acompanhar uma linha recolhe o painel para mostrar o mapa. */
+  protected readonly gaveta = signal<Gaveta>('alta');
+  protected readonly menuAtual = signal<Menu>('linhas');
+  protected readonly painelAberto = signal(true);
+  protected readonly modoMapa = signal<'linha' | 'paradas' | 'trajeto'>('linha');
+  protected readonly mostrarParadas = signal(true);
+  protected readonly filtroPerto = signal('');
+  private readonly rolagens = new Map<Menu, number>();
+  private readonly alturas = new Map<Menu, Gaveta>();
+  protected readonly iconeMenu = computed(
+    () => MENUS.find((m) => m.id === this.menuAtual())!.icone,
+  );
+  protected readonly descricaoMenu = computed(
+    () =>
+      ({
+        linhas: 'Escolha uma linha e acompanhe os ônibus',
+        paradas: 'Paradas próximas e as linhas que passam por elas',
+        trajetos: 'A pé e de ônibus · Natal',
+        favoritas: 'Suas linhas de todo dia',
+        ajustes: 'Mapa e informações do app',
+      })[this.menuAtual()],
+  );
+  protected readonly tituloMenu = computed(
+    () => MENUS.find((m) => m.id === this.menuAtual())!.nome,
+  );
   /** Texto do campo da linha (não é apagado quando a linha não existe). */
   protected readonly valorCampo = signal('');
   protected readonly offline = signal(
@@ -81,6 +118,7 @@ export class App {
   protected readonly anuncioUrgente = signal('');
   protected readonly filtroParadas = signal('');
   protected readonly listaAberta = signal(false);
+  protected readonly paradasLinhaAberta = signal(false);
   /** Frota aberta ou fechada pelo passageiro; sem escolha, fica fechada quando há placa. */
   protected readonly frotaEscolha = signal<boolean | null>(null);
   /** Relógio de 1 s para "há X s", sentidos e previsões. */
@@ -94,6 +132,18 @@ export class App {
   private avisosPlaca = new Map<string, { texto: string; ate: number }>();
   /** Fim do último toque na alça: o `click` que vem logo depois não pode alternar de novo. */
   private fimToqueAlca = 0;
+  /** Itinerário → última previsão da Nubus para o ponto escolhido. */
+  private readonly oficiais = new Map<string, Oficial>();
+  protected readonly selecaoTrajeto = signal<TipoPontoTrajeto | null>(null);
+  protected readonly pontosTrajeto = signal<PontosTrajeto>({ origem: null, destino: null });
+  protected readonly viagemTrajeto = signal<Viagem | null>(null);
+
+  /** Tela inicial: paradas com ônibus perto do passageiro (null = ainda não buscou). */
+  protected readonly perto = signal<ParadaProxima[] | null>(null);
+  protected readonly buscandoPerto = signal(false);
+  protected readonly avisoPerto = signal<string | null>(null);
+  /** Parada da lista "perto de você" tocada no mapa. */
+  protected readonly paradaPertoSel = signal<string | null>(null);
 
   protected readonly tema = this.temaService.tema;
   protected readonly corSemRota = COR_SEM_ROTA;
@@ -106,6 +156,44 @@ export class App {
     })),
   );
   protected readonly pontos = computed(() => agruparParadas(this.linha()?.itinerarios ?? []));
+  /** Paradas no mapa: as da linha aberta ou, na tela inicial, as perto do passageiro. */
+  protected readonly pontosMapa = computed((): PontoFisico[] =>
+    this.linha() && this.modoMapa() !== 'paradas'
+      ? this.pontos()
+      : (this.perto() ?? []).map((p) => ({
+          chave: p.codigo,
+          nome: nomeParada(p.descricao) || 'Parada',
+          lat: p.lat,
+          lng: p.lng,
+          sentidos: [],
+        })),
+  );
+  protected readonly pertoLista = computed(() =>
+    (this.perto() ?? []).map((p) => ({
+      ...p,
+      nome: nomeParada(p.descricao) || 'Parada sem endereço',
+      distancia: distanciaTexto(p.metros),
+      linhas: p.linhas.map((l) => ({
+        numero: l.numero,
+        destino: l.itinerarios.length ? destino(l.itinerarios[0]) : null,
+        rotulo: [`Linha ${l.numero}`, ...l.itinerarios.map(destino)].join(', '),
+      })),
+    })),
+  );
+  protected readonly pertoFiltradas = computed(() => {
+    const termo = this.filtroPerto().trim().toLocaleLowerCase('pt-BR');
+    return this.pertoLista().filter(
+      (p) => !termo || p.nome.toLocaleLowerCase('pt-BR').includes(termo),
+    );
+  });
+  protected readonly onibusSelecionado = computed(
+    () => this.onibus().find((o) => o.id === this.selecionado()) ?? null,
+  );
+  /** De onde vem o tempo da placa, para a nota embaixo dela dizer. */
+  protected readonly fontePlaca = computed(() => {
+    const fontes = new Set(this.sentidosPlaca().map((s) => s.fonte));
+    return fontes.size > 1 ? 'misto' : fontes.has('nubus') ? 'nubus' : 'estimativa';
+  });
   protected readonly ponto = computed(() => {
     const chave = this.pontoSel();
     return chave ? (this.pontos().find((p) => p.chave === chave) ?? null) : null;
@@ -125,11 +213,41 @@ export class App {
     const favs = this.fav.favoritas();
     return this.fav.recentes().filter((n) => !favs.includes(n));
   });
-  /** "Ver" só quando o campo pede outra linha; com a linha já aberta, sobra o ✕. */
-  protected readonly mostrarVer = computed(() => {
-    const digitado = this.valorCampo().trim().toUpperCase();
-    return digitado !== '' && digitado !== this.numero();
+  protected readonly linhasBusca = computed(() => {
+    const conhecidas = new Map(this.catalogo().map((l) => [l.numero, l]));
+    for (const numero of [
+      ...this.fav.favoritas(),
+      ...this.fav.recentes(),
+      ...(this.numero() ? [this.numero()!] : []),
+    ]) {
+      if (!conhecidas.has(numero))
+        conhecidas.set(numero, {
+          numero,
+          descricoes: this.fav.destinos()[numero] ? [this.fav.destinos()[numero]] : [],
+        });
+    }
+    const termo = normalizar(this.valorCampo());
+    return [...conhecidas.values()]
+      .filter((l) => !termo || normalizar([l.numero, ...l.descricoes].join(' ')).includes(termo))
+      .map((l) => {
+        const descricao =
+          (termo && l.descricoes.find((d) => normalizar(d).includes(termo))) ||
+          l.descricoes.find((d) => d.includes('/')) ||
+          l.descricoes[0];
+        return { ...l, nome: descricao ? destino(descricao) : 'Linha ' + l.numero };
+      })
+      .sort((a, b) => a.numero.localeCompare(b.numero, 'pt-BR', { numeric: true }));
   });
+  protected readonly numeroBusca = computed(() => {
+    const valor = this.valorCampo()
+      .trim()
+      .toUpperCase()
+      .replace(/^0+(?=\d)/, '');
+    return /^(?=.*\d)[A-Z0-9.-]{1,10}$/.test(valor) ? valor : null;
+  });
+  protected readonly numeroEncontrado = computed(() =>
+    this.linhasBusca().some((l) => l.numero === this.numeroBusca()),
+  );
 
   /** Tempo até o ponto escolhido de cada ônibus (o menor entre os sentidos). */
   private readonly etas = computed(() => {
@@ -241,12 +359,23 @@ export class App {
   );
 
   constructor() {
+    void this.carregarCatalogo();
     const relogio = setInterval(() => this.tique(), 1000);
     inject(DestroyRef).onDestroy(() => {
       clearInterval(relogio);
       this.assinatura?.unsubscribe();
+      this.consultaCatalogo?.abort();
     });
     afterNextRender(() => document.getElementById('splash')?.classList.add('oculto'));
+    effect((aoLimpar) => {
+      this.painelAberto();
+      this.menuAtual();
+      this.gaveta();
+      this.selecionado();
+      this.modoMapa();
+      const frame = requestAnimationFrame(() => this.medirGaveta());
+      aoLimpar(() => cancelAnimationFrame(frame));
+    });
 
     // Anuncia só as transições do estado da conexão.
     effect(() => {
@@ -269,6 +398,28 @@ export class App {
       });
     });
 
+    // Previsão da Nubus para cada sentido do ponto escolhido, enquanto ele estiver na tela.
+    effect((aoLimpar) => {
+      const n = this.numero();
+      const p = this.ponto();
+      if (!n || !p) return;
+      const assinaturas = p.sentidos.map((s) =>
+        this.previsaoService.acompanhar(n, s.itinerario, s.parada.codigo).subscribe((r) => {
+          // Falha: fica a última resposta, até ela ficar velha demais.
+          if (!r) return;
+          this.oficiais.set(`${s.itinerario}|${s.parada.codigo}`, {
+            chegadas: r.chegadas,
+            recebidoEm: Date.now(),
+          });
+          this.tique();
+        }),
+      );
+      aoLimpar(() => {
+        assinaturas.forEach((a) => a.unsubscribe());
+        this.oficiais.clear();
+      });
+    });
+
     const conexao = () => this.offline.set(!navigator.onLine);
     addEventListener('online', conexao);
     addEventListener('offline', conexao);
@@ -283,19 +434,25 @@ export class App {
     this.paradaPendente = params.get('parada');
     const inicial = params.get('linha');
     if (inicial) this.acompanhar(inicial);
-    else if (params.get('painel') === 'favoritas') this.gaveta.set('alta');
+    else if (params.get('painel') === 'favoritas') this.abrirMenu('favoritas');
   }
 
   protected acompanhar(valor: string): void {
     const numero = valor.trim().toUpperCase();
     if (!numero) return;
-    if (numero === this.numero()) return;
+    this.menuAtual.set('linhas');
+    this.painelAberto.set(true);
+    this.modoMapa.set('linha');
+    this.planejador()?.pausarSelecao();
+    if (numero === this.numero()) {
+      this.fecharMenu();
+      return;
+    }
 
     this.assinatura?.unsubscribe();
     this.numero.set(numero);
-    this.valorCampo.set(numero);
-    // A gaveta desce até o tamanho do conteúdo: o mapa é a prova, não pode sumir.
-    this.gaveta.set('baixa');
+    // Mantém a lista aberta durante a consulta; os primeiros dados fecham o painel.
+    this.gaveta.set('alta');
     this.dados.set(null);
     this.erro.set(null);
     this.status.set(null);
@@ -304,6 +461,7 @@ export class App {
     this.sentidosPlaca.set([]);
     this.filtroParadas.set('');
     this.listaAberta.set(false);
+    this.paradasLinhaAberta.set(false);
     this.frotaEscolha.set(null);
     this.esquecerSeguidos();
     this.carregando.set(true);
@@ -314,7 +472,8 @@ export class App {
         case 'status':
           this.status.set(a.status);
           break;
-        case 'dados':
+        case 'dados': {
+          const abriuAgora = this.dados() === null;
           this.carregando.set(false);
           this.erro.set(null);
           this.status.set('ao-vivo');
@@ -325,7 +484,9 @@ export class App {
             // "Planalto / Praia do Meio" + "Planalto / Mae Luiza" → "Planalto · Praia do Meio · Mae Luiza"
             [...new Set(this.itinerarios().flatMap((it) => it.destino.split(' / ')))].join(' · '),
           );
+          if (abriuAgora && this.menuAtual() === 'linhas' && this.painelAberto()) this.fecharMenu();
           break;
+        }
         case 'erro':
           this.carregando.set(false);
           this.erro.set(a.mensagem);
@@ -360,13 +521,22 @@ export class App {
 
   protected focar(id: string): void {
     this.selecionado.set(id);
-    this.mapa().focar(id);
+    this.modoMapa.set('linha');
+    this.fecharMenu();
+    requestAnimationFrame(() => {
+      if (this.selecionado() === id && this.modoMapa() === 'linha') this.mapa().focar(id);
+    });
   }
 
   /** Escolhe o ponto do passageiro (pelo mapa, pela lista ou pelo link). */
   protected escolherPonto(chave: string, mover = true): void {
     const p = this.pontos().find((x) => x.chave === chave);
     if (!p) return;
+    this.menuAtual.set('paradas');
+    this.paradasLinhaAberta.set(true);
+    this.painelAberto.set(true);
+    this.modoMapa.set('linha');
+    if (chave !== this.pontoSel()) this.oficiais.clear();
     this.pontoSel.set(chave);
     this.chegandoAnunciado.clear();
     this.esquecerSeguidos();
@@ -390,6 +560,7 @@ export class App {
   }
 
   protected trocarPonto(): void {
+    this.paradasLinhaAberta.set(true);
     this.pontoSel.set(null);
     this.sentidosPlaca.set([]);
     this.esquecerSeguidos();
@@ -432,6 +603,200 @@ export class App {
       requestAnimationFrame(() => this.mapa().enquadrarVarios(pontos, this.folgasMapa('media')));
       this.anuncio.set(`${this.proximos().length} paradas perto de você`);
     }
+  }
+
+  /** Tela inicial: paradas com ônibus perto do passageiro, sem precisar saber a linha. */
+  protected async paradasPertoDeMim(): Promise<void> {
+    this.avisoPerto.set(null);
+    const problema = await this.local.pedir();
+    const pos = this.local.posicao();
+    if (problema || !pos) {
+      this.avisoPerto.set(problema);
+      return;
+    }
+    this.buscandoPerto.set(true);
+    try {
+      const lista = await this.previsaoService.proximas(pos.lat, pos.lng);
+      this.perto.set(lista);
+      this.paradaPertoSel.set(null);
+      if (lista.length === 0) {
+        this.avisoPerto.set('Nenhuma parada com ônibus a menos de 600 m de você.');
+        return;
+      }
+      if (!this.painelAberto() || this.menuAtual() !== 'paradas') return;
+      this.modoMapa.set('paradas');
+      this.gaveta.set('media');
+      const pontos: [number, number][] = [
+        [pos.lat, pos.lng],
+        ...lista.slice(0, 4).map((p): [number, number] => [p.lat, p.lng]),
+      ];
+      requestAnimationFrame(() => this.mapa().enquadrarVarios(pontos, this.folgasMapa('media')));
+      this.anuncio.set(
+        lista.length === 1 ? '1 parada perto de você' : `${lista.length} paradas perto de você`,
+      );
+    } catch {
+      this.avisoPerto.set(
+        'A central de dados dos ônibus não respondeu. Tente de novo em instantes.',
+      );
+    } finally {
+      this.buscandoPerto.set(false);
+    }
+  }
+
+  protected iniciarPlanejador(): void {
+    this.abrirMenu('trajetos');
+  }
+
+  protected fecharPlanejador(): void {
+    this.fecharMenu();
+  }
+
+  protected selecionarNoMapa(tipo: TipoPontoTrajeto | null): void {
+    this.selecaoTrajeto.set(tipo);
+    if (tipo) {
+      this.modoMapa.set('trajeto');
+      this.gaveta.set('baixa');
+    } else if (this.menuAtual() === 'trajetos' && this.painelAberto()) this.gaveta.set('media');
+    this.anuncio.set(
+      tipo ? `Escolha ${tipo === 'origem' ? 'a origem' : 'o destino'} no mapa` : 'Ponto escolhido',
+    );
+  }
+
+  protected abrirMenu(menu: Menu): void {
+    this.guardarPainel();
+    this.planejador()?.pausarSelecao();
+    this.menuAtual.set(menu);
+    this.painelAberto.set(true);
+    this.gaveta.set(this.alturas.get(menu) ?? 'alta');
+    this.anuncio.set(this.tituloMenu());
+    requestAnimationFrame(() => {
+      const conteudo = this.host.querySelector('.conteudo');
+      if (conteudo) conteudo.scrollTop = this.rolagens.get(menu) ?? 0;
+    });
+  }
+
+  protected async carregarCatalogo(): Promise<void> {
+    this.consultaCatalogo?.abort();
+    const consulta = new AbortController();
+    this.consultaCatalogo = consulta;
+    this.carregandoCatalogo.set(true);
+    this.erroCatalogo.set(null);
+    try {
+      const linhas = await this.catalogoService.listar(consulta.signal);
+      if (!consulta.signal.aborted) this.catalogo.set(linhas);
+    } catch {
+      if (!consulta.signal.aborted)
+        this.erroCatalogo.set(
+          'Não foi possível carregar a lista de linhas. Você pode abrir uma linha pelo número.',
+        );
+    } finally {
+      if (this.consultaCatalogo === consulta) this.carregandoCatalogo.set(false);
+    }
+  }
+
+  protected abrirResultadoBusca(): void {
+    const numero = this.numeroBusca();
+    if (numero) this.acompanhar(numero);
+    else if (this.linhasBusca().length === 1) this.acompanhar(this.linhasBusca()[0].numero);
+  }
+
+  protected limparBusca(): void {
+    this.valorCampo.set('');
+    this.campo().nativeElement.value = '';
+    this.campo().nativeElement.focus();
+  }
+
+  protected alternarMenu(menu: Menu): void {
+    if (this.painelAberto() && this.menuAtual() === menu) this.fecharMenu();
+    else this.abrirMenu(menu);
+  }
+
+  private guardarPainel(): void {
+    if (!this.painelAberto()) return;
+    this.rolagens.set(this.menuAtual(), this.host.querySelector('.conteudo')?.scrollTop ?? 0);
+    this.alturas.set(this.menuAtual(), this.gaveta());
+  }
+
+  protected fecharMenu(): void {
+    this.guardarPainel();
+    this.painelAberto.set(false);
+    this.planejador()?.pausarSelecao();
+    this.anuncio.set('Painel fechado. Mapa disponível.');
+  }
+
+  protected alterarPontosTrajeto(pontos: PontosTrajeto): void {
+    this.pontosTrajeto.set(pontos);
+    this.modoMapa.set('trajeto');
+  }
+
+  protected escolherTema(tema: 'dia' | 'noite'): void {
+    if (this.tema() !== tema) this.temaService.alternar();
+  }
+
+  protected aoTocarMapa(ponto: LocalTrajeto): void {
+    const tipo = this.selecaoTrajeto();
+    if (tipo) this.planejador()?.definirPonto(tipo, ponto);
+  }
+
+  protected usarCentroMapa(): void {
+    const centro = this.mapa().centro();
+    if (centro) this.aoTocarMapa(centro);
+  }
+
+  protected mostrarViagem(viagem: Viagem | null): void {
+    this.viagemTrajeto.set(viagem);
+    if (!viagem || !this.painelAberto() || this.menuAtual() !== 'trajetos') return;
+    this.modoMapa.set('trajeto');
+    this.gaveta.set('media');
+    requestAnimationFrame(() => {
+      if (
+        !this.painelAberto() ||
+        this.menuAtual() !== 'trajetos' ||
+        this.viagemTrajeto() !== viagem
+      )
+        return;
+      this.mapa().enquadrarVarios(
+        [
+          ...viagem.trechos.flatMap((t) => t.tracado),
+          ...viagem.trechos.flatMap((t): [number, number][] => [
+            [t.partida.lat, t.partida.lng],
+            [t.chegada.lat, t.chegada.lng],
+          ]),
+        ],
+        this.folgasMapa('media'),
+      );
+      this.host
+        .querySelector('app-planejador .resultados')
+        ?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+  }
+
+  /** Abre a linha já com o ponto escolhido (vindo da lista "perto de você"). */
+  protected abrirNaParada(numero: string, codigoParada: string): void {
+    if (numero === this.numero() && this.linha()) {
+      this.abrirMenu('linhas');
+      const ponto = acharPonto(this.pontos(), codigoParada);
+      if (ponto) this.escolherPonto(ponto.chave);
+      return;
+    }
+    this.paradaPendente = codigoParada;
+    this.acompanhar(numero);
+  }
+
+  /** Toque numa parada do mapa: escolhe o ponto da linha ou, sem linha, mostra a parada na lista. */
+  protected aoTocarPonto(chave: string): void {
+    if (this.linha() && this.modoMapa() !== 'paradas') {
+      this.escolherPonto(chave, false);
+      return;
+    }
+    this.abrirMenu('paradas');
+    this.paradaPertoSel.set(chave);
+    if (this.gaveta() === 'baixa') this.gaveta.set('media');
+    requestAnimationFrame(() =>
+      this.host
+        .querySelector(`[data-parada="${CSS.escape(chave)}"]`)
+        ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }),
+    );
   }
 
   protected async centralizarEmMim(): Promise<void> {
@@ -504,7 +869,9 @@ export class App {
     const alvo = e.target as HTMLElement | null;
     const digitando = alvo?.tagName === 'INPUT';
     if (e.key === 'Escape') {
-      if (this.listaAberta()) this.listaAberta.set(false);
+      if (this.selecaoTrajeto()) this.planejador()?.pausarSelecao();
+      else if (this.painelAberto()) this.fecharMenu();
+      else if (this.listaAberta()) this.listaAberta.set(false);
       else if (this.selecionado()) this.selecionado.set(null);
       else if (this.pontoSel()) this.trocarPonto();
       if (digitando) alvo?.blur();
@@ -512,6 +879,7 @@ export class App {
       return;
     } else if (e.key === '/') {
       e.preventDefault();
+      this.abrirMenu('linhas');
       this.gaveta.set('media');
       this.campo().nativeElement.select();
     } else if (e.key.toLowerCase() === 'r') {
@@ -535,8 +903,21 @@ export class App {
     baseDir: [number, number];
   } {
     if (celular()) {
-      const topo = this.host.querySelector('.topo')?.getBoundingClientRect().bottom ?? 60;
-      const base = gaveta === 'baixa' ? this.alturaBaixaPx : innerHeight * 0.64;
+      const topo = this.host.querySelector('.linha-atual')?.getBoundingClientRect().bottom ?? 132;
+      const menu = this.host.querySelector('.navegacao nav')?.getBoundingClientRect().height ?? 80;
+      const disponivel =
+        this.host.querySelector<HTMLElement>('.painel')?.offsetHeight ?? innerHeight * 0.64;
+      const painel = this.painelAberto()
+        ? Math.min(
+            disponivel,
+            gaveta === 'baixa'
+              ? this.alturaBaixaPx
+              : gaveta === 'alta'
+                ? disponivel
+                : innerHeight * 0.64,
+          )
+        : (this.host.querySelector('.contexto-mapa')?.getBoundingClientRect().height ?? 0);
+      const base = painel + menu + 20;
       return { topoEsq: [24, topo + 24], baseDir: [64, base + 24] };
     }
     const painel = this.host.querySelector('.painel')?.getBoundingClientRect().right ?? 420;
@@ -550,12 +931,31 @@ export class App {
    */
   private medirGaveta(): void {
     if (!celular()) return;
+    if (!this.painelAberto()) {
+      this.host.style.setProperty('--altura-gaveta', '0px');
+      this.host.style.setProperty(
+        '--contexto-h',
+        `${this.host.querySelector('.contexto-mapa')?.getBoundingClientRect().height ?? 0}px`,
+      );
+      return;
+    }
     const painel = this.host.querySelector<HTMLElement>('.painel');
-    const ancora =
-      painel?.querySelector('[data-ancora]') ?? painel?.querySelector('.conteudo > :last-child');
+    const pagina = painel?.querySelector('.pagina-menu:not([hidden])');
+    const ancora = pagina?.querySelector('[data-ancora]') ?? pagina?.lastElementChild;
     if (!painel || !ancora) return;
-    const bruto = ancora.getBoundingClientRect().bottom - painel.getBoundingClientRect().top + 16;
+    const bruto =
+      ancora.getBoundingClientRect().bottom -
+      painel.getBoundingClientRect().top +
+      (painel.querySelector('.conteudo')?.scrollTop ?? 0) +
+      16;
     const altura = Math.round(Math.max(150, Math.min(bruto, innerHeight * 0.6)));
+    const visivel =
+      this.gaveta() === 'alta'
+        ? painel.offsetHeight
+        : this.gaveta() === 'media'
+          ? Math.min(painel.offsetHeight, innerHeight * 0.64)
+          : Math.min(painel.offsetHeight, altura);
+    this.host.style.setProperty('--altura-gaveta', `${visivel}px`);
     if (Math.abs(altura - this.alturaBaixaPx) < 3) return;
     this.alturaBaixaPx = altura;
     this.host.style.setProperty('--h-baixa', `${altura}px`);
@@ -573,13 +973,19 @@ export class App {
     const agora = Date.now();
     const sentidos = p.sentidos.map((s): SentidoNaPlaca => {
       const it = its.find((i) => i.codigo === s.itinerario);
-      const previsoes = this.mapa().previsoes(s);
+      const { previsoes, fonte, tabela } = mesclarPrevisoes(
+        this.mapa().previsoes(s),
+        this.oficiais.get(`${s.itinerario}|${s.parada.codigo}`) ?? null,
+        agora,
+      );
       return {
         itinerario: s.itinerario,
         destino: it?.destino ?? s.itinerario,
         cor: it?.cor ?? COR_SEM_ROTA,
         rumo: this.mapa().rumo(s),
         previsoes,
+        fonte,
+        tabela,
         aviso: this.acompanharSeguido(s.itinerario, previsoes, agora),
       };
     });

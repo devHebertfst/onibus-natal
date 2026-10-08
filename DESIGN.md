@@ -61,8 +61,8 @@ typography:
     letterSpacing: "-0.01em"
   campo:
     fontFamily: "'Overpass Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
-    fontSize: "22px"
-    fontWeight: 800
+    fontSize: "16px"
+    fontWeight: 500
     fontFeature: "tnum"
   title:
     fontFamily: "'Overpass Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
@@ -114,15 +114,7 @@ components:
     textColor: "{colors.texto}"
     typography: "{typography.campo}"
     rounded: "{rounded.raio}"
-    height: "52px"
-  campo-linha-rotulo:
-    backgroundColor: "{colors.placa}"
-    textColor: "{colors.placa-texto}"
-    padding: "0 10px"
-  botao-ver:
-    backgroundColor: "{colors.texto}"
-    textColor: "{colors.chao}"
-    padding: "0 16px"
+    height: "48px"
   botao:
     backgroundColor: "{colors.chao}"
     textColor: "{colors.texto}"
@@ -213,7 +205,7 @@ components:
 
 O Ônibus Natal fala a língua das placas que o passageiro já lê na rua: a sinalização viária brasileira do CONTRAN. A informação principal (quanto falta para o ônibus chegar no seu ponto) mora numa placa de indicação de verdade: fundo verde, filete branco interno, seta apontando o rumo, destino em letra de rodovia e o tempo em algarismos grandes. Tudo o que não é placa é chão: branco e asfalto de dia, asfalto escuro à noite. O mapa ocupa a tela inteira e as placas ficam por cima dele, como sinalização sobre a cidade.
 
-Cada cor tem o papel que tem na rua e só esse. Verde de indicação é informação e caminho (o topo, a placa do ponto, a ação principal, o rótulo do campo). Amarelo de advertência, sempre com preto, avisa que o dado está atrasado, que a conexão está voltando ou que a localização falhou. Vermelho de regulamentação marca erro, como o anel e a borda de uma placa de proibição. As cores dos sentidos (azul de serviço, laranja de obras e mais quatro) pintam o traçado no mapa e voltam como quadradinhos nas listas e na placa, para o passageiro ligar o que lê ao que vê. À noite o chão escurece e as placas continuam acesas no mesmo verde, como placas refletivas sob o farol.
+Cada cor tem o papel que tem na rua e só esse. Verde de indicação é informação e caminho (o topo, a placa do ponto, a ação principal, os números das linhas). Amarelo de advertência, sempre com preto, avisa que o dado está atrasado, que a conexão está voltando ou que a localização falhou. Vermelho de regulamentação marca erro, como o anel e a borda de uma placa de proibição. As cores dos sentidos (azul de serviço, laranja de obras e mais quatro) pintam o traçado no mapa e voltam como quadradinhos nas listas e na placa, para o passageiro ligar o que lê ao que vê. À noite o chão escurece e as placas continuam acesas no mesmo verde, como placas refletivas sob o farol.
 
 A densidade é de rua: letras pesadas, alvos de toque de 44 a 56 px, contraste para sol forte e uma mão só. O sistema recusa os dois padrões da categoria: o painel de telemetria escuro com neon e brilhos, e a pilha de cartões brancos genéricos com um azul de destaque.
 
@@ -230,7 +222,7 @@ A densidade é de rua: letras pesadas, alvos de toque de 44 a 56 px, contraste p
 Paleta de sinalização: um verde institucional dominante, dois sinais de alerta com papel fixo, chão neutro e seis cores de sentido para o mapa.
 
 ### Primary
-- **Verde Indicação** (placa): casca do produto. Topo, placa de chegada, botão principal, controle de mapa ativo, rótulo "Linha" do campo de busca, parada ativa no mapa, cor da barra do sistema (`theme-color`) e do ícone. Texto sobre ele é sempre branco (placa-texto), com contraste de cerca de 7:1.
+- **Verde Indicação** (placa): casca do produto. Topo, placa de chegada, botão principal, controle de mapa ativo, números das linhas, parada ativa no mapa, cor da barra do sistema (`theme-color`) e do ícone. Texto sobre ele é sempre branco (placa-texto), com contraste de cerca de 7:1.
 - **Verde Indicação Fundo** (placa-escura): hover do botão principal e contorno do escudo de rodovia no topo. À noite fica um pouco mais claro (placa-escura-noite).
 - **Branco de Placa** (placa-texto) e **Branco Gelo de Placa** (placa-texto-2): letra e filete sobre o verde; o segundo, para detalhes secundários dentro da placa e para a idade do dado no topo.
 
@@ -272,7 +264,7 @@ O mapa-base é emprestado: tiles Esri Light Gray (dia) e Dark Gray (noite), sem 
 
 ### Hierarchy
 - **Display** (800, 40px, 1, -0.03em, tabular): o número de minutos na placa de chegada. Único tamanho grande do sistema.
-- **Campo** (800, 22px, tabular): o número da linha digitado no campo de busca.
+- **Campo** (500, 16px): busca por número, bairro ou destino no catálogo de linhas.
 - **Headline** (800, 20px, 1.15, -0.01em): destino na placa, título "Em qual ponto você está?", marca no topo (18px no celular), números dos chips de linha e velocidade na frota.
 - **Title** (700–800, 16px, 1.25): nome da parada nas listas, títulos de seção ("Ônibus agora", "Favoritas"), botão principal, número da linha no escudo.
 - **Body** (400, 15px, 1.4–1.45): avisos, dicas, resumo da linha, botões (700), toast (600). Tamanho-base da página: 16px.
@@ -288,10 +280,10 @@ O mapa-base é emprestado: tiles Esri Light Gray (dia) e Dark Gray (noite), sem 
 
 Mapa em tela cheia (`position: fixed; inset: 0`), com topo, controles e painel flutuando por cima. A página não rola: `overflow: clip` no `html`, `body` e no componente raiz; só o conteúdo do painel rola.
 
-- **Desktop (acima de 760px):** coluna esquerda de 400px a 12px das bordas (respeitando `safe-area-inset`). Topo verde de 56px com cantos superiores de 14px, emendado ao painel branco logo abaixo (cantos inferiores de 14px). Controles do mapa empilhados no canto superior direito, com 8px entre eles. Ordem do painel: busca, placa (ou "Em qual ponto você está?"), linha e frota, rodapé com atalhos de teclado (só com `hover: hover` e `pointer: fine`).
+- **Desktop (acima de 760px):** coluna esquerda de 400px a 12px das bordas (respeitando `safe-area-inset`). Marca, resumo da linha acompanhada e painel independente abaixo. Controles do mapa empilhados no canto superior direito, com 8px entre eles. Linhas contém busca e catálogo; Paradas contém a placa e a escolha do ponto; Ajustes contém a legenda e os atalhos.
 - **Celular (até 760px):** topo verde de 52px colado no alto, de ponta a ponta, somando `safe-area-inset-top`. O painel vira gaveta inferior com três alturas (baixa ≈40dvh, média 64dvh, alta quase a tela toda); ela tem sempre a altura máxima e desliza com `transform`. Os controles do mapa, a atribuição e o toast sobem junto com a gaveta (variável `--altura-gaveta`), ficando ao alcance do polegar logo acima dela. O zoom vira pinça (botões de zoom escondidos).
 - **Ritmo:** passos de 4, 6, 8, 10, 12, 14 e 16px. Margem de 12px até a borda da tela; 14px entre blocos do painel e no padding da gaveta; 16px de padding lateral no topo e no painel desktop.
-- **Alvos de toque:** 44px (controles do mapa, limpar campo, botões de zoom), 48px (botões, chips, filtro, expandir), 52px (campo de linha e estrela), 56px (itens das listas de paradas e frota).
+- **Alvos de toque:** 44px (controles do mapa, limpar campo, estrela, botões de zoom), 48px (busca, botões, chips, filtro, expandir), 56px (itens das listas de paradas e frota), 78px (linhas do catálogo).
 
 ## Elevation & Depth
 
@@ -338,7 +330,8 @@ A peça que define o produto: uma placa de indicação com o ponto do passageiro
 - **Estado:** "Ao vivo" com luz redonda e idade do dado ("há 1 s") em placa-texto-2; em advertência, o estado vira plaquinha amarela com preto e a luz vira losango; neutro, a luz cai para 60%.
 
 ### Campo de linha
-- **Estilo:** caixa de 52px com borda de 2px em asfalto e cantos de 8px. À esquerda, o rótulo "Linha" é uma plaquinha verde (14px/700); no meio, o número a 22px/800; à direita, o botão limpar (44px) e o botão "Ver" em asfalto com letra no tom do chão (16px/800).
+- **Estilo:** caixa de 48px com borda de 1px, cantos de 8px, ícone de busca e texto a 16px/500. O rótulo acessível fica oculto visualmente; limpar a busca não encerra a linha acompanhada.
+- **Lista de linhas:** número em selo verde, descrição real da Nubus, ação para acompanhar e estrela independente de 44px. Apenas a linha acompanhada mostra sua quantidade de ônibus; as demais não inventam disponibilidade. Escolher a linha fecha o painel após receber os dados.
 - **Foco:** anel de 3px em `--foco` com 2px de afastamento na caixa inteira (`:focus-within`). Cursor de digitação verde de dia, amarelo à noite.
 - **Erro:** mensagem ligada por `aria-describedby` e `aria-invalid`; o aviso de erro aparece logo abaixo.
 
@@ -368,6 +361,9 @@ A peça que define o produto: uma placa de indicação com o ponto do passageiro
 - **Toast:** invertido (asfalto com letra no tom do chão), 15px/600, centralizado; no celular sobe acima da gaveta.
 
 ### Gaveta (celular)
+- **Painéis independentes do mapa:** cabeçalho com ícone, título, descrição e botão de fechar em cada menu. O X, Escape e um segundo toque no menu ativo fecham o painel. Trocar de área preserva a rolagem, os campos do trajeto, seus resultados e o enquadramento do mapa.
+- **Contexto da viagem:** resumo da linha sempre no topo; com o painel fechado, sentidos e informações do ônibus selecionado ficam acima da navegação, mostrando apenas dados disponíveis.
+- **Navegação principal:** barra flutuante na parte inferior, com Linhas, Paradas, Trajetos, Favoritas e Ajustes. Ícones de 22px, rótulos visíveis, botões de 58px e fundo verde na área ativa. Favoritas mostra a quantidade salva. A gaveta termina acima da barra, respeitando a área segura do aparelho.
 - **Alça:** área de 44px, traço de 44×5px em Contorno Forte; arrasta por ponteiro e alterna as alturas com clique, Enter ou Espaço (o clique que segue um toque é ignorado).
 - **Frota:** recolhida sob o título "Ônibus que vêm pra cá (N)" quando há placa, aberta sem ela; ordenada pelo tempo até o ponto, com "chega em X min" ao lado do número.
 - **Movimento:** `transform` em 0,32s com cubic-bezier(0.22, 1, 0.36, 1); os controles do mapa acompanham na mesma curva.

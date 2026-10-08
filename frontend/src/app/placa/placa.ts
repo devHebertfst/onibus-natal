@@ -12,6 +12,10 @@ export interface SentidoNaPlaca {
   previsoes: Previsao[];
   /** Por que o ônibus seguido mudou ("o ônibus X já passou"), por alguns segundos. */
   aviso: string | null;
+  /** De onde vem o tempo: previsão da Nubus ou estimativa própria (~18 km/h). */
+  fonte: 'nubus' | 'estimativa';
+  /** Próxima viagem da tabela ("20:55"), quando nenhum ônibus com GPS vem. */
+  tabela: string | null;
 }
 
 const RUMOS = [
@@ -65,11 +69,16 @@ export class Placa {
               onibus: proximo.onibus,
               chegando: proximo.minutos < 1,
               minutos: Math.max(1, Math.round(proximo.minutos)),
-              detalhe: `${
-                proximo.paradas === 0
-                  ? 'seu ponto é a próxima parada'
-                  : `a ${proximo.paradas} ${proximo.paradas === 1 ? 'parada' : 'paradas'} daqui`
-              } (${distanciaTexto(proximo.metros)})`,
+              detalhe:
+                proximo.paradas === null
+                  ? proximo.metros === null
+                    ? 'Distância não informada'
+                    : `a ${distanciaTexto(proximo.metros)} daqui`
+                  : `${
+                      proximo.paradas === 0
+                        ? 'seu ponto é a próxima parada'
+                        : `a ${proximo.paradas} ${proximo.paradas === 1 ? 'parada' : 'paradas'} daqui`
+                    }${proximo.metros === null ? '' : ` (${distanciaTexto(proximo.metros)})`}`,
             }
           : null,
         depois: depois.length

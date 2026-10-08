@@ -30,8 +30,11 @@ O que o separa do app oficial, do Moovit e do Google Maps:
 
 ## Operating Context
 
-- Fluxo principal: digitar o número da linha → ver traçado, paradas e ônibus → tocar num ônibus para segui-lo ou numa parada para ver os próximos com estimativa de chegada.
+- Fluxo principal: buscar pelo número, bairro ou destino em Linhas → escolher uma linha do catálogo → painel fecha e mostra traçado, paradas e ônibus. Tocar numa parada abre sua previsão no menu Paradas; tocar num ônibus abre seus detalhes no mapa.
+- Linhas contém busca, catálogo com nomes da Nubus e estrelas de favoritos. Paradas reúne a escolha do ponto da linha acompanhada, previsões e paradas próximas; Ajustes reúne a ajuda do mapa.
 - Favoritas e recentes guardadas no navegador; atalho do manifest abre direto nas favoritas.
+- Navegação por barra inferior: Linhas, Paradas, Trajetos, Favoritas e Ajustes. A linha acompanhada continua conectada ao trocar de área; Ajustes reúne o modo noite e informações do app.
+- Painéis podem ser fechados pelo X, Escape ou pelo menu ativo. Abrir outra área preserva zoom, posição e camadas do mapa, além da rolagem de cada painel. O trajeto mantém origem, destino, horário e resultados durante a navegação; inversão dos pontos é uma ação explícita.
 - Dados chegam por Server-Sent Events: o backend consulta a API uma vez por linha a cada 15 s e empurra cada atualização. O GPS dos veículos atualiza a cada ~30 s.
 - Uso ao ar livre com luz direta é real: existe alternância entre mapa escuro e claro por esse motivo.
 
@@ -39,11 +42,13 @@ O que o separa do app oficial, do Moovit e do Google Maps:
 
 - **Sem conta nem login.** Tudo funciona anonimamente; dados do usuário ficam só no navegador. Restrição confirmada.
 - **Legível sob sol forte e operável com uma mão.** Restrição confirmada.
-- Previsão de chegada: distância pelo traçado até a parada a 18 km/h (velocidade comercial média). É uma estimativa e deve ser apresentada como tal.
+- Previsão de chegada: prioriza os horários retornados pela Nubus; sem resposta recente, usa distância pelo traçado até a parada a 18 km/h. A placa informa a fonte e distingue viagens da tabela de ônibus com GPS.
+- Paradas próximas: localização → paradas até 600 m → linhas que passam ali → placa da linha no ponto escolhido.
+- Planejamento A→B: origem pela localização ou pelo mapa, destino pelo mapa, saída agora ou em horário escolhido. Mostra alternativas, caminhada, ônibus, horários de tabela e traçado. Sem busca de endereços nesta versão.
 - Mapas Esri Dark/Light Gray, sem chave de API.
 - Backend acompanha no máximo 40 linhas (até 4 consultas em paralelo); a API de origem nunca recebe consultas por cliente.
 - Terminologia: **linha** (número, ex.: 33), **itinerário** (variante/sentido de uma linha), **traçado**, **parada**, **frota**, **sentido** (ida/volta).
-- Próximas fases previstas (não implementadas): busca por parada e planejador de rota a pé + ônibus, service worker para internet fraca, histórico em PostgreSQL/PostGIS, tempo de parada no dead reckoning.
+- Próximas fases previstas (não implementadas): busca de destinos por endereço, service worker para internet fraca, histórico em PostgreSQL/PostGIS, tempo de parada no dead reckoning.
 
 ## Brand Commitments
 

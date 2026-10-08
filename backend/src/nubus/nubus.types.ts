@@ -38,3 +38,40 @@ export interface NubusParadasEspecifica {
   pontos?: string | null;
   carros?: NubusCarro[] | null;
 }
+
+/** Item de `POST /previsoes/listaparadasv2`: todas as paradas da cidade. */
+export interface NubusParadaCidade {
+  /** "PARADA#100018": o mesmo código das paradas dos itinerários. */
+  codigo: string;
+  Lat: number | string;
+  Long: number | string;
+  /** Código interno curto ("S00018"). */
+  nome?: string | null;
+  /** Endereço completo. */
+  descricao?: string | null;
+  apelido?: string | null;
+}
+
+/**
+ * Item de `POST /previsoes/paradas`: um ônibus (ou uma viagem da tabela) a
+ * caminho da parada. `[]` quando não vem nenhum.
+ */
+export interface NubusPrevisao {
+  /** Veículo ("CDN70061"), o mesmo `carro` do traçado; "FKEPlanejado" para viagem programada. */
+  Carro?: string | null;
+  /** "On-line" (GPS ao vivo) ou "Off-line" (horário da tabela). */
+  tipo?: string | null;
+  /** Arredondado para minutos inteiros. */
+  Minutos?: number | string | null;
+  /** Horário local de Natal, sem fuso: "2026-10-07T19:34:28.0000001". */
+  PrevisaoDeChegada?: string | null;
+  distanciaVeiculoMetros?: number | string | null;
+  /** m/s. */
+  velocidadeVeiculoConsiderada?: number | string | null;
+  /** Horário da última posição de GPS (com fuso). */
+  gpsVeiculoData?: string | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+  /** Para onde o ônibus segue ("Praia do Meio"). */
+  descricaoSentido?: string | null;
+}

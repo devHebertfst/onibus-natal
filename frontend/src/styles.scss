@@ -140,6 +140,20 @@ input {
   font-family: var(--fonte);
 }
 
+.trajeto-ponto span {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  box-sizing: border-box;
+  border: 3px solid var(--placa-texto);
+  border-radius: 50%;
+  background: var(--placa);
+  color: var(--placa-texto);
+  font-weight: 800;
+  box-shadow: var(--sombra);
+}
+
 .leaflet-bar {
   border: 0 !important;
   box-shadow: var(--sombra) !important;

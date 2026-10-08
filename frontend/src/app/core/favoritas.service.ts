@@ -28,6 +28,11 @@ export class FavoritasService {
     gravar('onibus-natal:recentes', this.recentes());
   }
 
+  limparRecentes(): void {
+    this.recentes.set([]);
+    gravar('onibus-natal:recentes', []);
+  }
+
   /** Guarda os destinos da linha quando ela abre (só muda se mudaram). */
   registrarDestinos(numero: string, destinos: string): void {
     if (!destinos || this.destinos()[numero] === destinos) return;

@@ -11,11 +11,11 @@ const MARGEM_PARADA_M = 15;
 export interface Previsao {
   onibus: string;
   /** Distância pelo traçado até a parada (m). */
-  metros: number;
-  /** Estimativa em minutos, pela velocidade comercial. */
+  metros: number | null;
+  /** Minutos até a parada (estimativa própria ou previsão da Nubus). */
   minutos: number;
-  /** Paradas entre o ônibus e a parada do passageiro. */
-  paradas: number;
+  /** Paradas entre o ônibus e a parada do passageiro; null se só a Nubus vê o ônibus. */
+  paradas: number | null;
 }
 
 const cacheParadas = new WeakMap<Rota, Map<string, number>>();
@@ -72,5 +72,5 @@ export function preverChegadas(
     ).length;
     previsoes.push({ onibus: animado.id, metros, minutos: metros / ms / 60, paradas: noCaminho });
   }
-  return previsoes.sort((a, b) => a.metros - b.metros);
+  return previsoes.sort((a, b) => a.minutos - b.minutos);
 }

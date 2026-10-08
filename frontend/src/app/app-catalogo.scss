@@ -1,0 +1,155 @@
+.busca-catalogo {
+  align-items: center;
+  border: 1px solid var(--linha-forte);
+  height: 48px;
+
+  > svg {
+    flex: none;
+    margin-left: 12px;
+    color: var(--texto-3);
+  }
+
+  input {
+    height: 100%;
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  .limpar {
+    flex: none;
+    height: 44px;
+  }
+}
+
+.catalogo-linhas {
+  gap: 8px;
+
+  .titulo-lista {
+    color: var(--texto-3);
+    font-size: 12px;
+    padding-bottom: 4px;
+  }
+}
+
+.lista-linhas {
+  li {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid var(--linha);
+  }
+
+  .linha-acompanhada {
+    border-radius: var(--raio);
+    background: var(--chao-2);
+  }
+
+  button {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    border-radius: var(--raio);
+    @media (hover: hover) {
+      &:hover {
+        background: var(--chao-2);
+      }
+    }
+  }
+}
+
+.abrir-catalogo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  min-height: 78px;
+  padding: 12px 6px;
+  text-align: left;
+
+  > span {
+    min-width: 0;
+    flex: 1;
+  }
+
+  strong {
+    display: block;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+
+  small {
+    display: block;
+    margin-top: 4px;
+    color: var(--texto-3);
+    font-size: 12px;
+  }
+}
+
+.numero-catalogo {
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-width: 44px;
+  height: 40px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  background: var(--placa);
+  color: var(--placa-texto);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.favoritar-catalogo {
+  flex: none;
+  width: 44px;
+  color: var(--texto-3);
+  &[aria-pressed='true'] svg {
+    fill: var(--adv);
+    stroke: var(--adv-texto);
+  }
+}
+
+.ao-vivo-catalogo {
+  font-weight: 700;
+  color: var(--placa);
+}
+
+.falha-catalogo {
+  padding: 12px;
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--texto-2);
+  }
+}
+
+.paradas-da-linha {
+  border-bottom: 1px solid var(--linha);
+  padding-bottom: 12px;
+  > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 44px;
+    cursor: pointer;
+    font-weight: 700;
+    list-style: none;
+    &::-webkit-details-marker {
+      display: none;
+    }
+  }
+  &[open] > summary svg {
+    transform: rotate(180deg);
+  }
+}
+
+.paradas-da-linha-conteudo {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 10px;
+}

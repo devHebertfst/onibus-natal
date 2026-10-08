@@ -27,9 +27,11 @@ import {
 import type { ItinerarioDto, LinhaDto, OnibusDto } from './linha.dto.js';
 import { RastreadorVelocidade } from './velocidade.js';
 
-interface ItinerarioRef {
+export interface ItinerarioRef {
   codigo: string;
   descricao: string;
+  /** Código da linha na operadora ("CDNO-33"), pedido pela previsão de chegada. */
+  codigolinha: string;
 }
 
 interface LinhaAcompanhada {
@@ -45,7 +47,8 @@ interface LinhaAcompanhada {
   emAndamento?: Promise<LinhaDto>;
 }
 
-const NUMERO_VALIDO = /^[A-Za-z0-9-]{1,10}$/;
+// Com ponto por causa de linhas como a "745.1".
+const NUMERO_VALIDO = /^[A-Za-z0-9.-]{1,10}$/;
 /** Quantas linhas o loop atualiza em paralelo (gentileza com a API de origem). */
 const CONCORRENCIA = 4;
 
@@ -134,6 +137,21 @@ export class LinhasService {
       if (!linha.snapshot) this.linhas.delete(linha.numero);
       throw e;
     }
+  }
+
+  /**
+   * Itinerário da linha pelo código, para a previsão de chegada. Usa a lista
+   * em cache (a mesma do loop) e passa a acompanhar a linha, se preciso.
+   */
+  async itinerario(
+    numeroBruto: string,
+    codigo: string,
+  ): Promise<ItinerarioRef> {
+    const ref = (await this.itinerariosDa(this.registrar(numeroBruto))).find(
+      (i) => i.codigo === codigo,
+    );
+    if (!ref) throw new NotFoundException('Itinerário não é desta linha');
+    return ref;
   }
 
   /** Números das linhas acompanhadas no momento (útil para debug/monitoramento). */
@@ -328,7 +346,11 @@ export class LinhasService {
       if (b.codigoItinerario == null || b.codigoItinerario === '') continue;
       const codigo = String(b.codigoItinerario);
       if (lista.some((x) => x.codigo === codigo)) continue; // a API repete itens
-      lista.push({ codigo, descricao: (b.descricaoItinerario ?? '').trim() });
+      lista.push({
+        codigo,
+        descricao: (b.descricaoItinerario ?? '').trim(),
+        codigolinha: (b.codigolinha ?? '').trim(),
+      });
     }
     if (lista.length === 0) {
       throw new NotFoundException(`Linha ${linha.numero} não encontrada`);
@@ -348,17 +370,22 @@ export function filtrarPorLinha(
   brutos: NubusItinerario[],
   numero: string,
 ): NubusItinerario[] {
-  const normalizar = (n: string) => n.toUpperCase().replace(/^0+(?=\d)/, '');
-  const numeroDe = (b: NubusItinerario) =>
-    normalizar(
-      (b.descricaolinha ?? '')
-        .trim()
-        .replace(/^[A-Za-z]+-/, '')
-        .split(/\s+/)[0],
-    );
   if (brutos.some((b) => !b.descricaolinha)) return brutos;
-  const alvo = normalizar(numero);
-  return brutos.filter((b) => numeroDe(b) === alvo);
+  const alvo = numeroDaLinha(numero);
+  return brutos.filter((b) => numeroDaLinha(b.descricaolinha ?? '') === alvo);
+}
+
+/**
+ * Número da linha como o passageiro digita: "O-33 Extra" → "33",
+ * "N-073" → "73", "SE17" → "SE17".
+ */
+export function numeroDaLinha(descricaolinha: string): string {
+  return descricaolinha
+    .trim()
+    .replace(/^[A-Za-z]+-/, '')
+    .split(/\s+/)[0]
+    .toUpperCase()
+    .replace(/^0+(?=\d)/, '');
 }
 
 function arredondar(v: number | null): number | null {
@@ -366,7 +393,7 @@ function arredondar(v: number | null): number | null {
 }
 
 /** Executa `fn` sobre os itens com no máximo `limite` chamadas simultâneas. */
-async function emParalelo<T>(
+export async function emParalelo<T>(
   itens: T[],
   limite: number,
   fn: (item: T) => Promise<void>,

@@ -42,6 +42,9 @@
             }
           } @else {
             <span class="detalhe">Nenhum ônibus vindo agora neste sentido</span>
+            @if (l.tabela) {
+              <span class="detalhe">Pela tabela, o próximo passa às {{ l.tabela }}</span>
+            }
           }
           @if (l.aviso; as aviso) {
             <span class="aviso">{{ aviso }}</span>

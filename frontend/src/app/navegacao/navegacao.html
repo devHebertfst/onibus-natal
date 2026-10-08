@@ -1,0 +1,20 @@
+<nav aria-label="Navegação principal">
+  @for (menu of menus; track menu.id) {
+    <button
+      type="button"
+      (click)="escolhido.emit(menu.id)"
+      [attr.aria-current]="atual() === menu.id ? 'page' : null"
+      [attr.aria-label]="menu.nome"
+      [attr.aria-expanded]="atual() === menu.id"
+      aria-controls="painel-principal"
+    >
+      <span class="icone-menu">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="menu.icone" /></svg>
+        @if (menu.id === 'favoritas' && favoritas()) {
+          <span class="contador-menu" aria-hidden="true">{{ favoritas() }}</span>
+        }
+      </span>
+      <span>{{ menu.nome }}</span>
+    </button>
+  }
+</nav>

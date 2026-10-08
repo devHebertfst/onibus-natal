@@ -1,0 +1,351 @@
+.linhas-salvas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  li {
+    display: flex;
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+    overflow: hidden;
+  }
+
+  button {
+    border: 0;
+    background: var(--chao);
+    cursor: pointer;
+    @media (hover: hover) {
+      &:hover {
+        background: var(--chao-2);
+      }
+    }
+  }
+
+  .abrir-salva {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+    min-height: 76px;
+    padding: 12px;
+    text-align: left;
+
+    span {
+      flex: 1;
+      min-width: 0;
+    }
+    strong {
+      display: block;
+      font-size: 14px;
+    }
+    small {
+      display: block;
+      margin-top: 3px;
+      color: var(--texto-3);
+    }
+    > svg {
+      width: 16px;
+    }
+  }
+
+  .numero-salvo {
+    display: grid;
+    place-items: center;
+    min-width: 48px;
+    height: 44px;
+    padding: 0 6px;
+    border-radius: 6px;
+    background: var(--placa);
+    color: var(--placa-texto);
+    font-size: 20px;
+  }
+
+  .remover-salva {
+    width: 44px;
+    flex: none;
+    color: var(--texto-2);
+    &[aria-pressed='false'] svg {
+      fill: none;
+      stroke: currentColor;
+    }
+    svg {
+      fill: var(--adv);
+      stroke: var(--adv-texto);
+    }
+  }
+}
+
+.vazio-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 24px 16px;
+  border: 1px dashed var(--linha-forte);
+  border-radius: var(--raio-painel);
+  > svg {
+    width: 36px;
+    height: 36px;
+    color: var(--texto-3);
+  }
+  p {
+    margin: 0;
+    color: var(--texto-2);
+  }
+}
+
+.ajustes,
+.sobre-app {
+  h3 {
+    margin: 0 0 12px;
+    font-size: 16px;
+  }
+}
+
+.ajuste-tema {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  min-height: 76px;
+  padding: 12px;
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  background: var(--chao);
+  text-align: left;
+  cursor: pointer;
+  strong,
+  small {
+    display: block;
+  }
+  small {
+    margin-top: 4px;
+    color: var(--texto-3);
+  }
+
+  .interruptor {
+    display: flex;
+    align-items: center;
+    flex: none;
+    width: 44px;
+    height: 26px;
+    padding: 3px;
+    box-sizing: border-box;
+    border-radius: 16px;
+    background: var(--linha-forte);
+    i {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform 0.15s;
+    }
+  }
+
+  &[aria-pressed='true'] .interruptor {
+    background: var(--placa);
+    i {
+      transform: translateX(18px);
+    }
+  }
+}
+
+.sobre-app {
+  padding-top: 18px;
+  border-top: 1px solid var(--linha);
+  p {
+    color: var(--texto-2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ajuste-tema .interruptor i {
+    transition: none;
+  }
+}
+
+/* Paradas perto do passageiro e as linhas de cada uma. */
+.perto {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.paradas-perto {
+  > li {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 4px;
+    scroll-margin: 12px;
+  }
+
+  > li + li {
+    border-top: 1px solid var(--linha);
+  }
+
+  /* Tocada no mapa: a mesma marca do ponto escolhido. */
+  > li.ativa {
+    box-shadow: inset 4px 0 0 var(--placa);
+    padding-left: 12px;
+  }
+
+  .cabeca {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  strong {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+
+  .dist {
+    margin-left: auto;
+    flex: none;
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+}
+.cabecalho-painel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  > div {
+    flex: 1;
+    min-width: 0;
+  }
+  h2 {
+    font-size: 20px;
+  }
+  p {
+    margin: 3px 0 0;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--texto-3);
+  }
+}
+.icone-painel {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: var(--raio);
+  background: var(--chao-2);
+  color: var(--placa);
+}
+.fechar-painel {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--raio);
+  background: transparent;
+  color: var(--texto-2);
+  cursor: pointer;
+}
+.fechar-painel:hover {
+  background: var(--chao-2);
+}
+.titulo-lista {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  h3 {
+    margin: 0;
+    font-size: 14px;
+  }
+}
+.acao-texto {
+  min-height: 44px;
+  border: 0;
+  background: none;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.recentes-menu {
+  margin-top: 12px;
+}
+.estilos-mapa {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 8px;
+    border: 1px solid var(--linha-forte);
+    border-radius: var(--raio);
+    background: var(--chao);
+    text-align: left;
+    cursor: pointer;
+  }
+  strong,
+  small {
+    display: block;
+  }
+  strong {
+    font-size: 14px;
+  }
+  small {
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--texto-3);
+  }
+  button[aria-pressed='true'] {
+    border-color: var(--placa);
+    background: var(--placa);
+    color: var(--placa-texto);
+    small {
+      color: var(--placa-texto-2);
+    }
+  }
+}
+.dados-conexao {
+  margin: 0;
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  overflow: hidden;
+  div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 12px;
+    font-size: 13px;
+  }
+  div + div {
+    border-top: 1px solid var(--linha);
+  }
+  dt {
+    color: var(--texto-3);
+  }
+  dd {
+    margin: 0;
+    font-weight: 700;
+  }
+}
+.lista-atalhos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  font-size: 12px;
+  li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
