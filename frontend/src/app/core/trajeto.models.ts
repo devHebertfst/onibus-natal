@@ -21,6 +21,8 @@ export interface Trecho {
   partida: LocalTrajeto;
   chegada: LocalTrajeto;
   tracado: [number, number][];
+  /** Ônibus: de onde vem o horário em que ele passa no ponto. */
+  fonteHorario?: 'ao-vivo' | 'tabela' | 'estimada';
 }
 
 export interface Viagem {

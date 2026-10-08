@@ -161,3 +161,12 @@ input {
   line-height: 1.4;
   color: var(--texto-2);
 }
+
+/* Quando o ônibus passa no ponto: verde quando vem do GPS. */
+.passa {
+  font-weight: 700;
+
+  &.ao-vivo {
+    color: var(--placa);
+  }
+}

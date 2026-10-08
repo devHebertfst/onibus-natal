@@ -15,6 +15,11 @@ export interface TrechoDto {
   partida: LocalTrajetoDto;
   chegada: LocalTrajetoDto;
   tracado: [number, number][];
+  /**
+   * Ônibus: de onde vem o horário em que ele passa no ponto ('ao-vivo': GPS;
+   * 'tabela': horário programado; 'estimada': sem previsão, espera média).
+   */
+  fonteHorario?: 'ao-vivo' | 'tabela' | 'estimada';
 }
 
 export interface ViagemDto {

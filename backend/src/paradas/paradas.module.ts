@@ -7,5 +7,6 @@ import { ParadasService } from './paradas.service.js';
   imports: [NubusModule],
   controllers: [ParadasController],
   providers: [ParadasService],
+  exports: [ParadasService],
 })
 export class ParadasModule {}

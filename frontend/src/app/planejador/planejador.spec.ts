@@ -63,7 +63,7 @@ describe('Planejador', () => {
     buscar.click();
     await fixture.whenStable();
     expect(planejar).toHaveBeenCalledTimes(1);
-    expect(el.textContent).toContain('apenas trajetos a pé');
+    expect(el.textContent).toContain('Nenhuma linha de ônibus passa perto');
     expect(el.textContent).toContain('08:05');
   });
 

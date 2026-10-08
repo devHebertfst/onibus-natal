@@ -1,8 +1,14 @@
 import { Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
 import { LocalizacaoService } from '../core/localizacao.service';
 import { horaLocal } from '../core/previsao-oficial';
-import { distanciaTexto } from '../core/texto';
-import { LocalTrajeto, PontosTrajeto, TipoPontoTrajeto, Viagem } from '../core/trajeto.models';
+import { destino, distanciaTexto, nomeParada } from '../core/texto';
+import {
+  LocalTrajeto,
+  PontosTrajeto,
+  TipoPontoTrajeto,
+  Trecho,
+  Viagem,
+} from '../core/trajeto.models';
 import { TrajetoService } from '../core/trajeto.service';
 
 /** Valor do datetime-local em hora de Natal, independente do fuso do aparelho. */
@@ -40,6 +46,25 @@ export class Planejador {
   );
   protected readonly hora = (iso: string) => horaLocal(Date.parse(iso));
   protected readonly distancia = distanciaTexto;
+  protected readonly nome = (n: string) => nomeParada(n) || n;
+  protected readonly sentido = (letreiro: string) => destino(letreiro);
+  /** "A pé", "Linha 54", "75 → 56". */
+  protected readonly resumo = (v: Viagem) => {
+    const linhas = v.trechos.filter((t) => t.modo === 'BUS').map((t) => t.linha ?? '?');
+    return linhas.length === 0
+      ? 'A pé'
+      : linhas.length === 1
+        ? `Linha ${linhas[0]}`
+        : linhas.join(' → ');
+  };
+  protected readonly quandoPassa = (t: Trecho) =>
+    t.fonteHorario === 'ao-vivo'
+      ? `Passa às ${this.hora(t.inicio)} (ao vivo)`
+      : t.fonteHorario === 'tabela'
+        ? `Passa às ${this.hora(t.inicio)} pela tabela`
+        : t.fonteHorario === 'estimada'
+          ? `Por volta das ${this.hora(t.inicio)} (sem previsão para este ponto)`
+          : null;
   protected readonly minutos = (segundos: number) => Math.max(1, Math.ceil(segundos / 60));
   private consulta?: AbortController;
   private destruido = false;

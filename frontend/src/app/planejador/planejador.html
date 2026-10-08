@@ -104,7 +104,10 @@
       } @else {
         <h3>{{ lista.length === 1 ? 'Trajeto encontrado' : 'Escolha um trajeto' }}</h3>
         @if (soCaminhada()) {
-          <p class="nota">A central retornou apenas trajetos a pé para esses pontos e horário.</p>
+          <p class="nota">
+            Nenhuma linha de ônibus passa perto desses dois pontos, nem com uma baldeação. Tente
+            escolher pontos próximos a uma avenida.
+          </p>
         }
         <ul class="alternativas">
           @for (v of lista; track $index) {
@@ -116,14 +119,7 @@
                 (click)="escolher($index)"
               >
                 <strong>{{ minutos(v.duracaoSegundos) }} min · chega às {{ hora(v.fim) }}</strong>
-                <span
-                  >{{
-                    v.trechos.length === 1 && v.trechos[0].modo === 'WALK'
-                      ? 'A pé'
-                      : 'Ônibus e caminhada'
-                  }}
-                  · {{ distancia(v.caminhadaMetros) }} a pé</span
-                >
+                <span>{{ resumo(v) }} · {{ distancia(v.caminhadaMetros) }} a pé</span>
               </button>
             </li>
           }
@@ -133,26 +129,38 @@
             @for (t of v.trechos; track $index) {
               <li>
                 <strong
-                  >{{ t.modo === 'WALK' ? 'Caminhe' : 'Pegue o ônibus'
+                  >{{
+                    t.modo === 'WALK'
+                      ? $last
+                        ? 'Caminhe até o destino'
+                        : $index === 0
+                          ? 'Caminhe até a parada'
+                          : 'Caminhe até a próxima parada'
+                      : $index > 0 && v.trechos[$index - 1].modo === 'BUS'
+                        ? 'Desça e pegue o ônibus'
+                        : 'Pegue o ônibus'
                   }}{{ t.linha ? ' ' + t.linha : '' }}</strong
                 >
                 @if (t.letreiro) {
-                  <span>Sentido {{ t.letreiro }}</span>
+                  <span>Sentido {{ sentido(t.letreiro) }}</span>
                 }
-                <span>{{ t.partida.nome }} → {{ t.chegada.nome }}</span>
+                @if (quandoPassa(t); as quando) {
+                  <span class="passa" [class.ao-vivo]="t.fonteHorario === 'ao-vivo'">{{
+                    quando
+                  }}</span>
+                }
+                <span>{{ nome(t.partida.nome) }} → {{ nome(t.chegada.nome) }}</span>
                 <span
                   >{{ hora(t.inicio) }}–{{ hora(t.fim) }} · {{ minutos(t.duracaoSegundos) }} min ·
                   {{ distancia(t.metros) }}</span
                 >
-                @if (t.tracado.length < 2) {
-                  <span>Traçado deste trecho não informado pela central.</span>
-                }
               </li>
             }
           </ol>
           <p class="nota">
-            Planejamento da Nubus. Os horários de ônibus seguem a tabela e podem mudar; não são
-            posições ao vivo. No mapa, caminhada é tracejada e ônibus é linha contínua.
+            A hora de embarque usa a previsão da Nubus quando há; o tempo dentro do ônibus e a
+            caminhada são estimativas. No mapa, caminhada é tracejada (em linha reta) e ônibus é
+            linha contínua.
           </p>
         }
       }

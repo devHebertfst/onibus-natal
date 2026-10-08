@@ -16,7 +16,9 @@ import {
   type ParadaCidade,
   parseParadas,
   parseParadasCidade,
+  parsePontos,
 } from '../nubus/nubus.parse.js';
+import type { ItinerarioMalha } from '../trajetos/roteador.js';
 import type {
   LinhaNaParadaDto,
   ParadaProximaDto,
@@ -52,6 +54,8 @@ interface Rede {
   linhas: Map<string, LinhaNaParadaDto[]>;
   /** Código da parada → itinerários que passam nela. */
   itinerarios: Map<string, ItinerarioNaParada[]>;
+  /** Todos os itinerários com as paradas em ordem, para o planejador de trajetos. */
+  malha: ItinerarioMalha[];
   montadaEm: number;
 }
 
@@ -162,6 +166,11 @@ export class ParadasService implements OnApplicationBootstrap {
     return resultado.sort((a, b) => a.metros - b.metros).slice(0, QUANTAS_AREA);
   }
 
+  /** Itinerários com as paradas em ordem e o traçado (para planejar trajetos). */
+  async malha(): Promise<ItinerarioMalha[]> {
+    return (await this.obterRede()).malha;
+  }
+
   /**
    * Próximos ônibus de todas as linhas que passam numa parada, pela previsão
    * da Nubus. Cada parada é consultada no máximo uma vez a cada 15 s.
@@ -260,6 +269,7 @@ export class ParadasService implements OnApplicationBootstrap {
 
     const linhas = new Map<string, LinhaNaParadaDto[]>();
     const porParada = new Map<string, ItinerarioNaParada[]>();
+    const malha: ItinerarioMalha[] = [];
     let falhas = 0;
     await emParalelo(itinerarios, CONCORRENCIA, async (it) => {
       let resposta;
@@ -280,7 +290,21 @@ export class ParadasService implements OnApplicationBootstrap {
         descricao: nome,
         codigolinha: (it.codigolinha ?? '').trim(),
       };
-      for (const parada of parseParadas(resposta.paradas)) {
+      const paradasDoItinerario = parseParadas(resposta.paradas);
+      if (paradasDoItinerario.length >= 2)
+        malha.push({
+          ...ref,
+          paradas: paradasDoItinerario.map(
+            ({ codigo, descricao, lat, lng }) => ({
+              codigo,
+              descricao,
+              lat,
+              lng,
+            }),
+          ),
+          tracado: parsePontos(resposta.pontos),
+        });
+      for (const parada of paradasDoItinerario) {
         if (ref.codigolinha) {
           let its = porParada.get(parada.codigo);
           if (!its) porParada.set(parada.codigo, (its = []));
@@ -306,6 +330,12 @@ export class ParadasService implements OnApplicationBootstrap {
       `Índice de paradas: ${paradas.length} paradas, ${itinerarios.length} itinerários` +
         `${falhas ? ` (${falhas} falharam)` : ''}, ${Date.now() - inicio} ms`,
     );
-    return { paradas, linhas, itinerarios: porParada, montadaEm: Date.now() };
+    return {
+      paradas,
+      linhas,
+      itinerarios: porParada,
+      malha,
+      montadaEm: Date.now(),
+    };
   }
 }
