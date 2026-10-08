@@ -1,5 +1,5 @@
-import { Controller, Get, ParseFloatPipe, Query } from '@nestjs/common';
-import type { ParadaProximaDto } from './paradas.dto.js';
+import { Controller, Get, Param, ParseFloatPipe, Query } from '@nestjs/common';
+import type { ParadaProximaDto, PrevisaoParadaDto } from './paradas.dto.js';
 import { ParadasService } from './paradas.service.js';
 
 @Controller('paradas')
@@ -29,5 +29,11 @@ export class ParadasController {
     @Query('leste', ParseFloatPipe) leste: number,
   ): Promise<ParadaProximaDto[]> {
     return this.paradas.naArea(sul, oeste, norte, leste);
+  }
+
+  /** Próximos ônibus de cada linha que passa na parada. */
+  @Get(':codigo/previsao')
+  previsao(@Param('codigo') codigo: string): Promise<PrevisaoParadaDto> {
+    return this.paradas.previsoes(codigo);
   }
 }

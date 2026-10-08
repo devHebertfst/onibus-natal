@@ -1,4 +1,8 @@
-import { BadGatewayException, BadRequestException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { NubusClient } from '../nubus/nubus.client.js';
 import { CatalogoRotasService } from '../nubus/catalogo-rotas.service.js';
 import { ParadasService } from './paradas.service.js';
@@ -9,16 +13,19 @@ function fakeClient() {
       codigoItinerario: 'A',
       descricaoItinerario: 'Planalto / Praia do Meio',
       descricaolinha: 'O-33',
+      codigolinha: 'CDNO-33',
     },
     {
       codigoItinerario: 'B',
       descricaoItinerario: 'Planalto / Mae Luiza',
       descricaolinha: 'O-33 Extra',
+      codigolinha: 'CDNO-33',
     },
     {
       codigoItinerario: 'C',
       descricaoItinerario: 'Ida',
       descricaolinha: 'N-73',
+      codigolinha: 'CDNN-73',
     },
   ];
   const paradasPor: Record<string, string[]> = {
@@ -54,6 +61,21 @@ function fakeClient() {
         ordem: i,
       })),
     })),
+    // Minutos até o próximo ônibus de cada itinerário (pelo nome).
+    previsaoParada: vi.fn(
+      async (_linha: string, itinerario: string): Promise<unknown[]> => {
+        const minutos: Record<string, number[]> = {
+          'Planalto / Praia do Meio': [12, 25],
+          'Planalto / Mae Luiza': [],
+          Ida: [4],
+        };
+        return minutos[itinerario].map((m) => ({
+          tipo: 'On-line',
+          Carro: `V${m}`,
+          Minutos: m,
+        }));
+      },
+    ),
   };
 }
 
@@ -143,5 +165,47 @@ describe('ParadasService', () => {
     await expect(
       service.naArea(NaN, -35.21, -5.79, -35.19),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('junta a previsão de cada itinerário da parada, do que chega primeiro ao sem previsão', async () => {
+    const client = fakeClient();
+    const nubus = client as unknown as NubusClient;
+    const service = new ParadasService(nubus, new CatalogoRotasService(nubus));
+
+    const r = await service.previsoes('PARADA#1');
+
+    expect(r.itinerarios.map((i) => [i.numero, i.descricao])).toEqual([
+      ['73', 'Ida'],
+      ['33', 'Planalto / Praia do Meio'],
+      ['33', 'Planalto / Mae Luiza'],
+    ]);
+    expect(r.itinerarios[1].chegadas).toHaveLength(2);
+    expect(r.itinerarios[2].chegadas).toEqual([]);
+    expect(client.previsaoParada).toHaveBeenCalledWith(
+      'CDNN-73',
+      'Ida',
+      'PARADA#1',
+    );
+    // Guardada por 15 s: o segundo pedido não consulta de novo.
+    await service.previsoes('PARADA#1');
+    expect(client.previsaoParada).toHaveBeenCalledTimes(3);
+  });
+
+  it('marca sem previsão o itinerário que falha e recusa parada sem linha', async () => {
+    const client = fakeClient();
+    client.previsaoParada.mockImplementation(async (_l, itinerario) => {
+      if (itinerario === 'Ida') throw new Error('timeout');
+      return [];
+    });
+    const nubus = client as unknown as NubusClient;
+    const service = new ParadasService(nubus, new CatalogoRotasService(nubus));
+
+    const r = await service.previsoes('PARADA#1');
+    expect(r.itinerarios.find((i) => i.descricao === 'Ida')?.chegadas).toBe(
+      null,
+    );
+    await expect(service.previsoes('PARADA#4')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });

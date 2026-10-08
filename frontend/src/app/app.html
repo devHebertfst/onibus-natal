@@ -355,7 +355,10 @@
           <ul class="paradas-perto parada-tocada" aria-label="Parada escolhida no mapa">
             <ng-container *ngTemplateOutlet="itemParada; context: { $implicit: p }" />
           </ul>
-          <p class="dica">Toque numa linha para ver quanto falta para ela passar nesta parada.</p>
+          <p class="dica">
+            Toque no nome da parada para ver os próximos ônibus, ou numa linha para acompanhá-la no
+            mapa.
+          </p>
         }
         <button
           type="button"
@@ -396,7 +399,10 @@
           @if (!pertoFiltradas().length) {
             <p class="vazio">Nenhuma parada encontrada com esse nome.</p>
           }
-          <p class="dica">Toque numa linha para ver quanto falta para ela passar nesta parada.</p>
+          <p class="dica">
+            Toque no nome da parada para ver os próximos ônibus, ou numa linha para acompanhá-la no
+            mapa.
+          </p>
         }
         @if (
           !pertoLista().length &&
@@ -853,29 +859,72 @@
 />
 
 <ng-template #itemParada let-p>
-  <li [attr.data-parada]="p.codigo" [class.ativa]="p.codigo === paradaPertoSel()">
+  @let aberta = p.codigo === paradaPertoSel();
+  @let prev = aberta ? previsoesParada() : null;
+  <li [attr.data-parada]="p.codigo" [class.ativa]="aberta">
     <div class="cabeca">
-      <strong>{{ p.nome }}</strong>
+      <button
+        type="button"
+        class="nome-parada"
+        (click)="alternarParadaPerto(p.codigo)"
+        [attr.aria-expanded]="aberta"
+      >
+        <strong>{{ p.nome }}</strong>
+        <small>{{ aberta ? 'Próximos ônibus' : 'Ver próximos ônibus' }}</small>
+      </button>
       @if (p.distancia) {
         <span class="dist">{{ p.distancia }}</span>
       }
     </div>
-    <ul class="chips" [attr.aria-label]="'Linhas que passam em ' + p.nome">
-      @for (l of p.linhas; track l.numero) {
-        <li>
-          <button
-            type="button"
-            (click)="abrirNaParada(l.numero, p.codigo)"
-            [attr.aria-label]="l.rotulo"
-            [title]="l.rotulo"
-          >
-            {{ l.numero }}
-            @if (l.destino) {
-              <small>{{ l.destino }}</small>
-            }
-          </button>
-        </li>
-      }
-    </ul>
+    @if (prev?.carregando) {
+      <p class="previsao-status" role="status">Buscando os próximos ônibus…</p>
+    } @else if (prev?.falhou) {
+      <p class="previsao-status" role="status">
+        A previsão não respondeu agora. Toque numa linha para acompanhá-la no mapa.
+      </p>
+    } @else if (prev) {
+      <ul class="proximos-parada" [attr.aria-label]="'Próximos ônibus em ' + p.nome">
+        @for (l of prev.linhas; track $index) {
+          <li>
+            <button type="button" (click)="abrirNaParada(l.numero, p.codigo)">
+              <b class="num">{{ l.numero }}</b>
+              <span class="destino">{{ l.destino }}</span>
+              <span class="tempos">
+                @for (t of l.tempos; track $index) {
+                  <strong [class.chegando]="t === 'chegando'">{{ t }}</strong>
+                } @empty {
+                  <small>{{
+                    l.tabela
+                      ? 'tabela ' + l.tabela
+                      : l.semResposta
+                        ? 'sem previsão'
+                        : 'nenhum a caminho'
+                  }}</small>
+                }
+              </span>
+            </button>
+          </li>
+        }
+      </ul>
+    }
+    @if (!prev || prev.falhou) {
+      <ul class="chips" [attr.aria-label]="'Linhas que passam em ' + p.nome">
+        @for (l of p.linhas; track l.numero) {
+          <li>
+            <button
+              type="button"
+              (click)="abrirNaParada(l.numero, p.codigo)"
+              [attr.aria-label]="l.rotulo"
+              [title]="l.rotulo"
+            >
+              {{ l.numero }}
+              @if (l.destino) {
+                <small>{{ l.destino }}</small>
+              }
+            </button>
+          </li>
+        }
+      </ul>
+    }
   </li>
 </ng-template>

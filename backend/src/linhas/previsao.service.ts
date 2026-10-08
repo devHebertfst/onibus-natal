@@ -7,7 +7,8 @@ import {
 import { config } from '../config.js';
 import { NubusClient } from '../nubus/nubus.client.js';
 import { parsePrevisoes } from '../nubus/nubus.parse.js';
-import type { PrevisaoDto } from './linha.dto.js';
+import type { NubusPrevisao } from '../nubus/nubus.types.js';
+import type { ChegadaDto, PrevisaoDto } from './linha.dto.js';
 import { LinhasService } from './linhas.service.js';
 
 /** Viagens da tabela além dos ônibus ao vivo: as próximas bastam. */
@@ -25,6 +26,26 @@ interface ItemCache {
  * Previsão de chegada da própria Nubus numa parada. Cada parada é consultada
  * no máximo uma vez a cada 15s, por mais gente que a esteja olhando.
  */
+/** Ônibus ao vivo e as próximas viagens da tabela, do que chega primeiro ao último. */
+export function montarChegadas(
+  brutas: NubusPrevisao[],
+  agora: number,
+): ChegadaDto[] {
+  const chegadas = parsePrevisoes(brutas, agora);
+  const programadas = chegadas
+    .filter((c) => !c.aoVivo && c.chegaEm > agora)
+    .slice(0, MAX_PROGRAMADAS);
+  return [...chegadas.filter((c) => c.aoVivo), ...programadas]
+    .sort((a, b) => a.chegaEm - b.chegaEm)
+    .map((c) => ({
+      onibus: c.onibus,
+      aoVivo: c.aoVivo,
+      chegaEm: new Date(c.chegaEm).toISOString(),
+      metros: c.metros,
+      gpsEm: c.gpsEm === null ? null : new Date(c.gpsEm).toISOString(),
+    }));
+}
+
 @Injectable()
 export class PrevisaoService {
   private readonly cache = new Map<string, ItemCache>();
@@ -89,23 +110,11 @@ export class PrevisaoService {
       );
     }
     const agora = Date.now();
-    const chegadas = parsePrevisoes(brutas, agora);
-    const programadas = chegadas
-      .filter((c) => !c.aoVivo && c.chegaEm > agora)
-      .slice(0, MAX_PROGRAMADAS);
     return {
       itinerario: ref.codigo,
       parada,
       consultadoEm: new Date(agora).toISOString(),
-      chegadas: [...chegadas.filter((c) => c.aoVivo), ...programadas]
-        .sort((a, b) => a.chegaEm - b.chegaEm)
-        .map((c) => ({
-          onibus: c.onibus,
-          aoVivo: c.aoVivo,
-          chegaEm: new Date(c.chegaEm).toISOString(),
-          metros: c.metros,
-          gpsEm: c.gpsEm === null ? null : new Date(c.gpsEm).toISOString(),
-        })),
+      chegadas: montarChegadas(brutas, agora),
     };
   }
 

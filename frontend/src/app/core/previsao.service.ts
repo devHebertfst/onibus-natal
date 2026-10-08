@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Observable, from, switchMap, timer } from 'rxjs';
 import { PrevisaoOficial } from './linha.models';
-import { ParadaProxima } from './paradas.models';
+import { ParadaProxima, PrevisaoParada } from './paradas.models';
 
 /** O backend guarda cada parada por 15 s; pedir mais que isso não traz nada novo. */
 const INTERVALO_MS = 20_000;
@@ -27,6 +27,23 @@ export class PrevisaoService {
         from(
           fetch(url)
             .then((r) => (r.ok ? (r.json() as Promise<PrevisaoOficial>) : null))
+            .catch(() => null),
+        ),
+      ),
+    );
+  }
+
+  /**
+   * Próximos ônibus de todas as linhas de uma parada, de novo a cada 20 s.
+   * Uma falha vira `null`, e a próxima rodada tenta de novo.
+   */
+  acompanharParada(codigo: string): Observable<PrevisaoParada | null> {
+    const url = `/api/paradas/${encodeURIComponent(codigo)}/previsao`;
+    return timer(0, INTERVALO_MS).pipe(
+      switchMap(() =>
+        from(
+          fetch(url)
+            .then((r) => (r.ok ? (r.json() as Promise<PrevisaoParada>) : null))
             .catch(() => null),
         ),
       ),

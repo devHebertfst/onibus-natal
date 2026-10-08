@@ -3,11 +3,13 @@ import {
   BadRequestException,
   Injectable,
   Logger,
+  NotFoundException,
   OnApplicationBootstrap,
 } from '@nestjs/common';
 import { config } from '../config.js';
 import { haversine } from '../linhas/geo.js';
 import { emParalelo, numeroDaLinha } from '../linhas/linhas.service.js';
+import { montarChegadas } from '../linhas/previsao.service.js';
 import { NubusClient } from '../nubus/nubus.client.js';
 import { CatalogoRotasService } from '../nubus/catalogo-rotas.service.js';
 import {
@@ -15,7 +17,12 @@ import {
   parseParadas,
   parseParadasCidade,
 } from '../nubus/nubus.parse.js';
-import type { LinhaNaParadaDto, ParadaProximaDto } from './paradas.dto.js';
+import type {
+  LinhaNaParadaDto,
+  ParadaProximaDto,
+  PrevisaoItinerarioDto,
+  PrevisaoParadaDto,
+} from './paradas.dto.js';
 
 /** Raio máximo da busca (m): mais longe que isso não é "perto de mim". */
 const RAIO_MAXIMO_M = 1_500;
@@ -28,11 +35,30 @@ const LADO_MAXIMO_AREA = 0.5;
 /** Quantos itinerários consultar em paralelo ao montar o índice. */
 const CONCORRENCIA = 4;
 
+/** Previsões de uma parada guardadas além disso são esquecidas. */
+const ESQUECER_PREVISAO_APOS_MS = 5 * 60_000;
+
+/** O que a previsão da Nubus pede de um itinerário. */
+interface ItinerarioNaParada {
+  numero: string;
+  codigo: string;
+  descricao: string;
+  codigolinha: string;
+}
+
 interface Rede {
   paradas: ParadaCidade[];
   /** Código da parada → linhas que passam nela. */
   linhas: Map<string, LinhaNaParadaDto[]>;
+  /** Código da parada → itinerários que passam nela. */
+  itinerarios: Map<string, ItinerarioNaParada[]>;
   montadaEm: number;
+}
+
+interface PrevisaoGuardada {
+  em: number;
+  valor?: PrevisaoParadaDto;
+  emAndamento?: Promise<PrevisaoParadaDto>;
 }
 
 /**
@@ -46,6 +72,7 @@ export class ParadasService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ParadasService.name);
   private rede?: Rede;
   private emAndamento?: Promise<Rede>;
+  private readonly previsoesGuardadas = new Map<string, PrevisaoGuardada>();
 
   constructor(
     private readonly nubus: NubusClient,
@@ -135,6 +162,79 @@ export class ParadasService implements OnApplicationBootstrap {
     return resultado.sort((a, b) => a.metros - b.metros).slice(0, QUANTAS_AREA);
   }
 
+  /**
+   * Próximos ônibus de todas as linhas que passam numa parada, pela previsão
+   * da Nubus. Cada parada é consultada no máximo uma vez a cada 15 s.
+   */
+  async previsoes(codigo: string): Promise<PrevisaoParadaDto> {
+    const rede = await this.obterRede();
+    const itinerarios = rede.itinerarios.get(codigo);
+    if (!itinerarios?.length)
+      throw new NotFoundException('Nenhuma linha passa nesta parada');
+
+    const agora = Date.now();
+    for (const [chave, item] of this.previsoesGuardadas)
+      if (!item.emAndamento && agora - item.em > ESQUECER_PREVISAO_APOS_MS)
+        this.previsoesGuardadas.delete(chave);
+    const item = this.previsoesGuardadas.get(codigo);
+    if (item?.emAndamento) return item.emAndamento;
+    if (item?.valor && agora - item.em < config.previsaoTtlMs)
+      return item.valor;
+
+    const novo: PrevisaoGuardada = {
+      em: item?.em ?? agora,
+      valor: item?.valor,
+    };
+    novo.emAndamento = this.consultarPrevisoes(codigo, itinerarios).finally(
+      () => (novo.emAndamento = undefined),
+    );
+    this.previsoesGuardadas.set(codigo, novo);
+    novo.valor = await novo.emAndamento;
+    novo.em = Date.now();
+    return novo.valor;
+  }
+
+  private async consultarPrevisoes(
+    codigo: string,
+    itinerarios: ItinerarioNaParada[],
+  ): Promise<PrevisaoParadaDto> {
+    const resultado: PrevisaoItinerarioDto[] = [];
+    await emParalelo(itinerarios, CONCORRENCIA, async (it) => {
+      let chegadas: PrevisaoItinerarioDto['chegadas'] = null;
+      try {
+        const brutas = await this.nubus.previsaoParada(
+          it.codigolinha,
+          it.descricao,
+          codigo,
+        );
+        chegadas = montarChegadas(brutas, Date.now());
+      } catch {
+        // Fica sem previsão só este itinerário.
+      }
+      resultado.push({
+        numero: it.numero,
+        itinerario: it.codigo,
+        descricao: it.descricao,
+        chegadas,
+      });
+    });
+    if (resultado.every((r) => r.chegadas === null)) {
+      throw new BadGatewayException('Previsão indisponível');
+    }
+    const primeira = (r: PrevisaoItinerarioDto) =>
+      r.chegadas?.length ? Date.parse(r.chegadas[0].chegaEm) : Infinity;
+    resultado.sort(
+      (a, b) =>
+        primeira(a) - primeira(b) ||
+        a.numero.localeCompare(b.numero, 'pt-BR', { numeric: true }),
+    );
+    return {
+      parada: codigo,
+      consultadoEm: new Date().toISOString(),
+      itinerarios: resultado,
+    };
+  }
+
   private obterRede(): Promise<Rede> {
     const rede = this.rede;
     if (rede && Date.now() - rede.montadaEm < config.paradasTtlMs)
@@ -159,6 +259,7 @@ export class ParadasService implements OnApplicationBootstrap {
     const itinerarios = await this.catalogo.rotas();
 
     const linhas = new Map<string, LinhaNaParadaDto[]>();
+    const porParada = new Map<string, ItinerarioNaParada[]>();
     let falhas = 0;
     await emParalelo(itinerarios, CONCORRENCIA, async (it) => {
       let resposta;
@@ -173,7 +274,18 @@ export class ParadasService implements OnApplicationBootstrap {
       }
       const numero = numeroDaLinha(it.descricaolinha ?? '');
       const nome = (it.descricaoItinerario ?? '').trim();
+      const ref: ItinerarioNaParada = {
+        numero,
+        codigo: String(it.codigoItinerario),
+        descricao: nome,
+        codigolinha: (it.codigolinha ?? '').trim(),
+      };
       for (const parada of parseParadas(resposta.paradas)) {
+        if (ref.codigolinha) {
+          let its = porParada.get(parada.codigo);
+          if (!its) porParada.set(parada.codigo, (its = []));
+          if (!its.some((x) => x.codigo === ref.codigo)) its.push(ref);
+        }
         let lista = linhas.get(parada.codigo);
         if (!lista) linhas.set(parada.codigo, (lista = []));
         let linha = lista.find((l) => l.numero === numero);
@@ -194,6 +306,6 @@ export class ParadasService implements OnApplicationBootstrap {
       `Índice de paradas: ${paradas.length} paradas, ${itinerarios.length} itinerários` +
         `${falhas ? ` (${falhas} falharam)` : ''}, ${Date.now() - inicio} ms`,
     );
-    return { paradas, linhas, montadaEm: Date.now() };
+    return { paradas, linhas, itinerarios: porParada, montadaEm: Date.now() };
   }
 }

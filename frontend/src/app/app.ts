@@ -15,8 +15,8 @@ import { Subscription } from 'rxjs';
 import { FavoritasService } from './core/favoritas.service';
 import { LinhaService, StatusConexao } from './core/linha.service';
 import { LocalizacaoService } from './core/localizacao.service';
-import { ParadaProxima } from './core/paradas.models';
-import { Oficial, mesclarPrevisoes } from './core/previsao-oficial';
+import { ParadaProxima, PrevisaoParada } from './core/paradas.models';
+import { Oficial, horaLocal, mesclarPrevisoes } from './core/previsao-oficial';
 import { PrevisaoService } from './core/previsao.service';
 import { PontoFisico, acharPonto, agruparParadas, distanciaM, pontosProximos } from './core/pontos';
 import { TemaService } from './core/tema.service';
@@ -147,6 +147,12 @@ export class App {
   protected readonly avisoPerto = signal<string | null>(null);
   /** Parada da lista "perto de você" tocada no mapa. */
   protected readonly paradaPertoSel = signal<string | null>(null);
+  /** Previsão da parada escolhida na lista ou no mapa (sem linha aberta). */
+  private readonly previsaoParada = signal<{
+    codigo: string;
+    dados: PrevisaoParada | null;
+    falhou: boolean;
+  } | null>(null);
   /** Tela inicial: paradas na parte visível do mapa. */
   protected readonly areaParadas = signal<ParadaProxima[]>([]);
   /** Mapa afastado demais para mostrar as paradas da tela inicial. */
@@ -208,6 +214,37 @@ export class App {
     return this.pertoLista().filter(
       (p) => !termo || p.nome.toLocaleLowerCase('pt-BR').includes(termo),
     );
+  });
+  /**
+   * Próximos ônibus da parada escolhida, por sentido: até dois ao vivo
+   * ("5 min", "12 min") ou, sem nenhum, o próximo horário da tabela.
+   */
+  protected readonly previsoesParada = computed(() => {
+    const atual = this.previsaoParada();
+    if (!atual || atual.codigo !== this.paradaPertoSel()) return null;
+    if (!atual.dados) return { carregando: !atual.falhou, falhou: atual.falhou, linhas: [] };
+    const agora = this.agora();
+    const linhas = atual.dados.itinerarios.map((it) => {
+      const futuras = (it.chegadas ?? []).filter((c) => Date.parse(c.chegaEm) > agora - 60_000);
+      const aoVivo = futuras.filter((c) => c.aoVivo).slice(0, 2);
+      const tempos = aoVivo.length
+        ? aoVivo.map((c) => {
+            const min = (Date.parse(c.chegaEm) - agora) / 60_000;
+            return min < 1 ? 'chegando' : `${Math.round(min)} min`;
+          })
+        : [];
+      const tabela = aoVivo.length ? null : futuras.find((c) => !c.aoVivo);
+      return {
+        numero: it.numero,
+        destino: destino(it.descricao) || it.descricao || 'Linha ' + it.numero,
+        tempos,
+        tabela: tabela ? horaLocal(Date.parse(tabela.chegaEm)) : null,
+        semResposta: it.chegadas === null,
+        primeira: aoVivo.length ? Date.parse(aoVivo[0].chegaEm) : Infinity,
+      };
+    });
+    linhas.sort((a, b) => a.primeira - b.primeira);
+    return { carregando: false, falhou: false, linhas };
   });
   protected readonly onibusSelecionado = computed(
     () => this.onibus().find((o) => o.id === this.selecionado()) ?? null,
@@ -445,6 +482,23 @@ export class App {
       });
     });
 
+    // Previsão da parada escolhida (sem linha), enquanto a lista de paradas estiver aberta.
+    effect((aoLimpar) => {
+      const codigo = this.paradaPertoSel();
+      if (!codigo || !this.painelAberto() || this.menuAtual() !== 'paradas') return;
+      untracked(() => {
+        if (this.previsaoParada()?.codigo !== codigo)
+          this.previsaoParada.set({ codigo, dados: null, falhou: false });
+      });
+      const assinatura = this.previsaoService.acompanharParada(codigo).subscribe((dados) => {
+        const antes = this.previsaoParada();
+        // Falha: fica a última resposta desta parada, se houver.
+        if (dados) this.previsaoParada.set({ codigo, dados, falhou: false });
+        else if (!antes?.dados) this.previsaoParada.set({ codigo, dados: null, falhou: true });
+      });
+      aoLimpar(() => assinatura.unsubscribe());
+    });
+
     // Voltou ao mapa vazio (fechou a linha, limpou o trajeto): busca as paradas da área.
     effect(() => {
       if (this.mapaVazio()) untracked(() => this.agendarArea(0));
@@ -594,6 +648,15 @@ export class App {
     } catch {
       // Sem resposta: ficam as paradas que já estavam; o próximo movimento tenta de novo.
     }
+  }
+
+  /** Toque no nome de uma parada da lista: mostra os próximos ônibus dela (ou fecha). */
+  protected alternarParadaPerto(codigo: string): void {
+    const fechar = this.paradaPertoSel() === codigo;
+    this.paradaPertoSel.set(fechar ? null : codigo);
+    if (fechar) return;
+    const p = this.pontosMapa().find((x) => x.chave === codigo);
+    if (p) this.mapa().irPara(p.lat, p.lng);
   }
 
   /** Mapa afastado demais na tela inicial: aproxima até as paradas aparecerem. */
