@@ -9,12 +9,12 @@ import { config } from '../config.js';
 import { haversine } from '../linhas/geo.js';
 import { emParalelo, numeroDaLinha } from '../linhas/linhas.service.js';
 import { NubusClient } from '../nubus/nubus.client.js';
+import { CatalogoRotasService } from '../nubus/catalogo-rotas.service.js';
 import {
   type ParadaCidade,
   parseParadas,
   parseParadasCidade,
 } from '../nubus/nubus.parse.js';
-import type { NubusItinerario } from '../nubus/nubus.types.js';
 import type { LinhaNaParadaDto, ParadaProximaDto } from './paradas.dto.js';
 
 /** Raio máximo da busca (m): mais longe que isso não é "perto de mim". */
@@ -43,7 +43,10 @@ export class ParadasService implements OnApplicationBootstrap {
   private rede?: Rede;
   private emAndamento?: Promise<Rede>;
 
-  constructor(private readonly nubus: NubusClient) {}
+  constructor(
+    private readonly nubus: NubusClient,
+    private readonly catalogo: CatalogoRotasService,
+  ) {}
 
   onApplicationBootstrap(): void {
     if (!config.aquecerParadas) return;
@@ -107,18 +110,11 @@ export class ParadasService implements OnApplicationBootstrap {
     const inicio = Date.now();
     const paradas = parseParadasCidade(await this.nubus.listarParadas());
 
-    const itinerarios = new Map<string, NubusItinerario>();
-    for (const digito of '0123456789') {
-      for (const it of await this.nubus.pesquisarRotas(digito)) {
-        if (it.codigoItinerario == null || it.codigoItinerario === '') continue;
-        if (!it.descricaolinha) continue;
-        itinerarios.set(String(it.codigoItinerario), it);
-      }
-    }
+    const itinerarios = await this.catalogo.rotas();
 
     const linhas = new Map<string, LinhaNaParadaDto[]>();
     let falhas = 0;
-    await emParalelo([...itinerarios.values()], CONCORRENCIA, async (it) => {
+    await emParalelo(itinerarios, CONCORRENCIA, async (it) => {
       let resposta;
       try {
         resposta = await this.nubus.paradasEspecifica(
@@ -140,7 +136,7 @@ export class ParadasService implements OnApplicationBootstrap {
           linha.itinerarios.push(nome);
       }
     });
-    if (itinerarios.size === 0 || falhas === itinerarios.size) {
+    if (itinerarios.length === 0 || falhas === itinerarios.length) {
       throw new Error('nenhum itinerário respondeu');
     }
     for (const lista of linhas.values())
@@ -149,7 +145,7 @@ export class ParadasService implements OnApplicationBootstrap {
       );
 
     this.logger.log(
-      `Índice de paradas: ${paradas.length} paradas, ${itinerarios.size} itinerários` +
+      `Índice de paradas: ${paradas.length} paradas, ${itinerarios.length} itinerários` +
         `${falhas ? ` (${falhas} falharam)` : ''}, ${Date.now() - inicio} ms`,
     );
     return { paradas, linhas, montadaEm: Date.now() };

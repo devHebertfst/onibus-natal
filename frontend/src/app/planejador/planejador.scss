@@ -1,5 +1,6 @@
 :host {
   display: block;
+  min-width: 0;
 }
 section,
 form {
@@ -17,6 +18,25 @@ form {
 .cabeca {
   justify-content: space-between;
 }
+.inverter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  align-self: flex-end;
+  border: 0;
+  background: var(--chao-2);
+  font-size: 13px;
+  svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
 h2,
 h3,
 p {
@@ -33,6 +53,7 @@ label {
   font-weight: 700;
 }
 fieldset {
+  min-inline-size: 0;
   margin: 0;
   padding: 12px;
   border: 1px solid var(--linha-forte);
@@ -42,7 +63,13 @@ fieldset p {
   margin: 0 0 10px;
   color: var(--texto-2);
 }
+fieldset button {
+  font-size: 14px;
+  padding: 8px 10px;
+}
 button {
+  box-sizing: border-box;
+  max-width: 100%;
   min-height: 44px;
   padding: 10px 12px;
   border: 2px solid var(--linha-forte);

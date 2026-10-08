@@ -1,0 +1,169 @@
+.linha-atual {
+  position: absolute;
+  z-index: 1000;
+  top: calc(20px + var(--topo-h));
+  left: max(12px, env(safe-area-inset-left));
+  display: flex;
+  width: 400px;
+  min-height: 72px;
+  box-sizing: border-box;
+  border: 1px solid var(--linha);
+  border-radius: var(--raio-painel);
+  background: var(--chao);
+  box-shadow: var(--sombra);
+  overflow: hidden;
+
+  button {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+  .abrir-linha-atual {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    text-align: left;
+    b {
+      display: grid;
+      place-items: center;
+      min-width: 48px;
+      height: 44px;
+      border-radius: 6px;
+      background: var(--placa);
+      color: var(--placa-texto);
+      font-size: 22px;
+    }
+    span {
+      min-width: 0;
+    }
+    strong,
+    small {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    strong {
+      font-size: 14px;
+    }
+    small {
+      margin-top: 3px;
+      color: var(--texto-3);
+      font-size: 12px;
+    }
+  }
+  .favoritar-atual {
+    width: 44px;
+    flex: none;
+    color: var(--texto-3);
+  }
+  .favoritar-atual[aria-pressed='true'] svg {
+    fill: var(--adv);
+    stroke: var(--adv-texto);
+  }
+}
+
+.contexto-mapa {
+  position: absolute;
+  z-index: 1000;
+  left: max(12px, env(safe-area-inset-left));
+  bottom: calc(var(--menu-h) + 10px);
+  width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sentidos-mapa {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--linha);
+  border-radius: var(--raio-painel);
+  background: var(--chao);
+  box-shadow: var(--sombra);
+  button {
+    flex: 1;
+    min-width: 0;
+    padding: 8px;
+    border: 0;
+    border-radius: var(--raio);
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+  }
+  span {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--texto-3);
+  }
+  strong {
+    display: block;
+    margin-top: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+  i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+}
+.detalhe-onibus {
+  padding: 12px;
+  border: 1px solid var(--linha);
+  border-radius: var(--raio-painel);
+  background: var(--chao);
+  box-shadow: var(--sombra);
+  p {
+    margin: 4px 0 12px;
+    color: var(--texto-2);
+    font-size: 13px;
+  }
+  .cabeca-onibus {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .medidas-onibus {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .medidas-onibus > span {
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+    padding: 10px;
+  }
+  small {
+    display: block;
+    font-size: 11px;
+    color: var(--texto-3);
+  }
+  strong {
+    display: block;
+    margin-top: 4px;
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 760px) {
+  .linha-atual {
+    top: calc(var(--topo-h) + env(safe-area-inset-top) + 8px);
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    width: auto;
+  }
+  .contexto-mapa {
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    width: auto;
+  }
+}

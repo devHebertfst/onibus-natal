@@ -1,8 +1,13 @@
-<section aria-labelledby="titulo-trajeto">
-  <div class="cabeca">
-    <h2 id="titulo-trajeto">Como chegar?</h2>
-    <button type="button" class="secundario" (click)="fechado.emit()">Voltar</button>
-  </div>
+<section
+  [attr.aria-labelledby]="cabecalho() ? 'titulo-trajeto' : null"
+  aria-label="Planejador de trajetos"
+>
+  @if (cabecalho()) {
+    <div class="cabeca">
+      <h2 id="titulo-trajeto">Como chegar?</h2>
+      <button type="button" class="secundario" (click)="fechado.emit()">Voltar</button>
+    </div>
+  }
   <form (submit)="$event.preventDefault(); buscar()" [attr.aria-busy]="buscando()">
     <fieldset>
       <legend>De onde você sai?</legend>
@@ -26,6 +31,18 @@
         </button>
       </div>
     </fieldset>
+    <button
+      type="button"
+      class="inverter"
+      (click)="inverter()"
+      [disabled]="!origem() && !destino()"
+      aria-label="Inverter origem e destino"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M8 4v16m-4-4 4 4 4-4M16 20V4m-4 4 4-4 4 4" />
+      </svg>
+      Inverter origem e destino
+    </button>
     <fieldset>
       <legend>Onde quer chegar?</legend>
       <p>{{ destino()?.nome ?? 'Escolha o destino' }}</p>

@@ -1,4 +1,4 @@
-import { Component, DestroyRef, computed, inject, output, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
 import { LocalizacaoService } from '../core/localizacao.service';
 import { horaLocal } from '../core/previsao-oficial';
 import { distanciaTexto } from '../core/texto';
@@ -23,6 +23,7 @@ export class Planejador {
   readonly viagemEscolhida = output<Viagem | null>();
   readonly centroSolicitado = output<void>();
   readonly fechado = output<void>();
+  readonly cabecalho = input(true);
   protected readonly origem = signal<LocalTrajeto | null>(null);
   protected readonly destino = signal<LocalTrajeto | null>(null);
   protected readonly selecionando = signal<TipoPontoTrajeto | null>(null);
@@ -53,6 +54,20 @@ export class Planejador {
   protected selecionar(tipo: TipoPontoTrajeto | null): void {
     this.selecionando.set(tipo);
     this.selecaoAlterada.emit(tipo);
+  }
+
+  /** Suspende o clique no mapa sem apagar os pontos ou os resultados. */
+  pausarSelecao(): void {
+    this.selecionar(null);
+  }
+
+  protected inverter(): void {
+    const origem = this.origem();
+    this.origem.set(this.destino());
+    this.destino.set(origem);
+    this.invalidar();
+    this.pontosAlterados.emit({ origem: this.origem(), destino: this.destino() });
+    this.selecionar(null);
   }
 
   /** Chamado pela tela quando o passageiro escolhe um ponto no mapa. */

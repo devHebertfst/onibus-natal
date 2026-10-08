@@ -19,6 +19,7 @@ import { config } from '../config.js';
 import type { LinhaDto, PrevisaoDto } from './linha.dto.js';
 import { LinhasService } from './linhas.service.js';
 import { PrevisaoService } from './previsao.service.js';
+import { CatalogoRotasService } from '../nubus/catalogo-rotas.service.js';
 
 /** Formato dos eventos de `GET /api/linhas/:numero/stream`. */
 type EventoSse =
@@ -36,12 +37,19 @@ export class LinhasController {
   constructor(
     private readonly linhas: LinhasService,
     private readonly previsao: PrevisaoService,
+    private readonly catalogo: CatalogoRotasService,
   ) {}
 
   /** Linhas que o backend está acompanhando agora. */
   @Get()
   listar(): string[] {
     return this.linhas.acompanhadas();
+  }
+
+  /** Números e descrições das linhas, sem iniciar acompanhamento de GPS. */
+  @Get('catalogo')
+  catalogoDeLinhas() {
+    return this.catalogo.linhas();
   }
 
   /** Ônibus (com posição e velocidade), paradas e traçado de uma linha. */

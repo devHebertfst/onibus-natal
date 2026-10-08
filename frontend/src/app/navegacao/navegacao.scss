@@ -1,0 +1,90 @@
+:host {
+  display: block;
+}
+/* A navegação fica ao alcance do polegar, sobre o mapa. */
+nav {
+  position: absolute;
+  z-index: 1002;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  width: min(420px, calc(100% - 24px));
+  box-sizing: border-box;
+  padding: 6px;
+  border: 1px solid var(--linha);
+  border-radius: 24px;
+  background: var(--chao);
+  box-shadow: var(--sombra);
+
+  button {
+    flex: 1;
+    min-width: 0;
+    min-height: 58px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 5px 2px;
+    border: 0;
+    border-radius: 18px;
+    background: transparent;
+    color: var(--texto-2);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+      background-color 0.15s,
+      color 0.15s;
+
+    &[aria-current='page'] {
+      background: var(--placa);
+      color: var(--placa-texto);
+    }
+
+    @media (hover: hover) {
+      &:hover:not([aria-current]) {
+        background: var(--chao-2);
+      }
+    }
+  }
+
+  svg {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+.icone-menu {
+  position: relative;
+  display: flex;
+}
+
+.contador-menu {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  min-width: 16px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: var(--adv);
+  color: var(--adv-texto);
+  font-size: 10px;
+  line-height: 16px;
+}
+
+svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+@media (prefers-reduced-motion: reduce) {
+  nav button {
+    transition: none;
+  }
+}

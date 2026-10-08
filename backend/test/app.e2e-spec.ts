@@ -67,6 +67,17 @@ describe('GET /api/linhas/:numero (e2e)', () => {
     expect(res.body.itinerarios[0].tracado).toHaveLength(2);
   });
 
+  it('lista o catálogo sem iniciar o acompanhamento de linhas', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/linhas/catalogo')
+      .expect(200);
+    expect(res.body).toEqual([{ numero: '33', descricoes: ['IDA'] }]);
+    const acompanhadas = await request(app.getHttpServer())
+      .get('/api/linhas')
+      .expect(200);
+    expect(acompanhadas.body).toEqual([]);
+  });
+
   it('consulta a previsão oficial e valida o vínculo da parada com o itinerário', async () => {
     const r = await request(app.getHttpServer())
       .get('/api/linhas/33/previsao')

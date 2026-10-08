@@ -131,6 +131,11 @@ curl -N http://localhost:3000/api/linhas/33/stream
 
 `GET /api/linhas` lista as linhas acompanhadas no momento.
 
+`GET /api/linhas/catalogo` devolve números e descrições das linhas para a busca
+por número, bairro ou destino. Agrupa variantes e remove duplicatas da Nubus,
+sem iniciar consultas de GPS. O catálogo compartilha a consulta de rotas com
+o índice de paradas e usa o cache de itinerários (6 horas por padrão).
+
 ### Previsão da Nubus, paradas próximas e planejamento
 
 - `GET /api/linhas/:numero/previsao?itinerario=<codigo>&parada=<codigo>`:

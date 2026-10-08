@@ -1,6 +1,7 @@
 /* Mapa em tela cheia; topo, controles e painel ficam por cima dele. */
 :host {
   --topo-h: 56px;
+  --menu-h: calc(88px + env(safe-area-inset-bottom));
   position: fixed;
   inset: 0;
   display: block;
@@ -71,7 +72,7 @@ i {
   justify-content: space-between;
   gap: 12px;
   padding: 0 16px;
-  border-radius: var(--raio-painel) var(--raio-painel) 0 0;
+  border-radius: var(--raio-painel);
   background: var(--placa);
   color: var(--placa-texto);
 }
@@ -220,16 +221,16 @@ i {
 .painel {
   position: absolute;
   z-index: 1001;
-  top: calc(12px + var(--topo-h));
+  top: calc(100px + var(--topo-h));
   left: max(12px, env(safe-area-inset-left));
-  bottom: 12px;
+  bottom: var(--menu-h);
   width: 400px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 14px;
   padding: 14px 16px 12px;
-  border-radius: 0 0 var(--raio-painel) var(--raio-painel);
+  border-radius: var(--raio-painel);
   background: var(--chao);
   box-shadow: var(--sombra);
 }
@@ -237,10 +238,24 @@ i {
 .alca {
   display: none;
 }
+.painel[hidden],
+.pagina-menu[hidden] {
+  display: none;
+}
+.pagina-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
 
 .linha-busca {
   display: flex;
   gap: 8px;
+
+  &[hidden] {
+    display: none;
+  }
 }
 
 .busca {
@@ -346,6 +361,7 @@ i {
   gap: 14px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .aviso {
@@ -946,7 +962,7 @@ footer {
 @media (max-width: 760px) {
   :host {
     --topo-h: 52px;
-    --h-gaveta-alta: calc(100dvh - var(--topo-h) - env(safe-area-inset-top) - 10px);
+    --h-gaveta-alta: calc(100dvh - var(--topo-h) - env(safe-area-inset-top) - var(--menu-h) - 92px);
   }
 
   .topo {
@@ -971,8 +987,14 @@ footer {
   .controles {
     top: auto;
     right: 10px;
-    bottom: calc(var(--altura-gaveta, 64dvh) + 10px);
+    bottom: calc(var(--altura-gaveta, 64dvh) + var(--menu-h) + 10px);
     transition: bottom 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .controles.painel-fechado {
+    bottom: calc(var(--menu-h) + var(--contexto-h, 0px) + 16px);
+  }
+  .controles:not(.mapa-livre) {
+    display: none;
   }
 
   /*
@@ -983,24 +1005,25 @@ footer {
   .painel {
     --desloca: 0px;
     top: auto;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    bottom: var(--menu-h);
     width: auto;
     height: var(--h-gaveta-alta);
     gap: 12px;
     padding: 0 16px;
-    border-radius: 18px 18px 0 0;
+    border-radius: 18px;
     box-shadow: 0 -2px 12px rgb(16 20 22 / 18%);
     transform: translateY(var(--desloca));
+    clip-path: inset(0 0 var(--desloca) 0 round 18px);
     transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 
     &[data-gaveta='baixa'] {
-      --desloca: calc(var(--h-gaveta-alta) - var(--h-baixa, 40dvh));
+      --desloca: max(0px, calc(var(--h-gaveta-alta) - var(--h-baixa, 40dvh)));
     }
 
     &[data-gaveta='media'] {
-      --desloca: calc(var(--h-gaveta-alta) - 64dvh);
+      --desloca: max(0px, calc(var(--h-gaveta-alta) - 64dvh));
     }
   }
 
@@ -1036,53 +1059,6 @@ footer {
   }
 
   .toast {
-    bottom: calc(var(--altura-gaveta, 64dvh) + 12px);
-  }
-}
-
-/* Tela inicial: paradas perto do passageiro e as linhas de cada uma. */
-.perto {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.paradas-perto {
-  > li {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 12px 4px;
-    scroll-margin: 12px;
-  }
-
-  > li + li {
-    border-top: 1px solid var(--linha);
-  }
-
-  /* Tocada no mapa: a mesma marca do ponto escolhido. */
-  > li.ativa {
-    box-shadow: inset 4px 0 0 var(--placa);
-    padding-left: 12px;
-  }
-
-  .cabeca {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-  }
-
-  strong {
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1.25;
-  }
-
-  .dist {
-    margin-left: auto;
-    flex: none;
-    font-size: 15px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
+    bottom: calc(var(--altura-gaveta, 64dvh) + var(--menu-h) + 12px);
   }
 }

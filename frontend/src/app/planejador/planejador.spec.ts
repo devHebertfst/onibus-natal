@@ -85,6 +85,24 @@ describe('Planejador', () => {
     expect(selecionar).toHaveBeenCalledWith('origem');
   });
 
+  it('inverte os pontos e descarta o resultado anterior antes de consultar o novo sentido', async () => {
+    const fixture = TestBed.createComponent(Planejador);
+    fixture.componentInstance.definirPonto('origem', origem);
+    fixture.componentInstance.definirPonto('destino', destino);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    el.querySelector<HTMLButtonElement>('[type=submit]')!.click();
+    await fixture.whenStable();
+    expect(el.querySelector('.resultados')).toBeTruthy();
+    el.querySelector<HTMLButtonElement>('[aria-label="Inverter origem e destino"]')!.click();
+    await fixture.whenStable();
+    expect(el.querySelector('.resultados')).toBeNull();
+    el.querySelector<HTMLButtonElement>('[type=submit]')!.click();
+    await fixture.whenStable();
+    expect(planejar.mock.calls[1][0]).toEqual(destino);
+    expect(planejar.mock.calls[1][1]).toEqual(origem);
+  });
+
   it('ignora resposta pendente se o passageiro muda o destino', async () => {
     let resolver!: (v: Trajeto) => void;
     planejar.mockImplementationOnce(

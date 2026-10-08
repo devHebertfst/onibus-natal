@@ -1,5 +1,6 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException } from '@nestjs/common';
 import { NubusClient } from '../nubus/nubus.client.js';
+import { CatalogoRotasService } from '../nubus/catalogo-rotas.service.js';
 import { ParadasService } from './paradas.service.js';
 
 function fakeClient() {
@@ -57,9 +58,26 @@ function fakeClient() {
 }
 
 describe('ParadasService', () => {
+  it('sinaliza indisponibilidade quando não há itinerários ou nenhum responde', async () => {
+    for (const semRotas of [true, false]) {
+      const client = fakeClient();
+      if (semRotas) client.pesquisarRotas.mockResolvedValue([]);
+      else
+        client.paradasEspecifica.mockRejectedValue(new Error('Indisponível'));
+      const nubus = client as unknown as NubusClient;
+      const service = new ParadasService(
+        nubus,
+        new CatalogoRotasService(nubus),
+      );
+      await expect(service.proximas(-5.8, -35.2)).rejects.toBeInstanceOf(
+        BadGatewayException,
+      );
+    }
+  });
   it('lista as paradas próximas com as linhas que passam em cada uma', async () => {
     const client = fakeClient();
-    const service = new ParadasService(client as unknown as NubusClient);
+    const nubus = client as unknown as NubusClient;
+    const service = new ParadasService(nubus, new CatalogoRotasService(nubus));
 
     const r = await service.proximas(-5.8, -35.2);
 
@@ -79,7 +97,8 @@ describe('ParadasService', () => {
 
   it('monta o índice uma vez só, mesmo com pedidos simultâneos', async () => {
     const client = fakeClient();
-    const service = new ParadasService(client as unknown as NubusClient);
+    const nubus = client as unknown as NubusClient;
+    const service = new ParadasService(nubus, new CatalogoRotasService(nubus));
     await Promise.all([
       service.proximas(-5.8, -35.2),
       service.proximas(-5.8, -35.2, 100),
@@ -89,7 +108,8 @@ describe('ParadasService', () => {
   });
 
   it('respeita o raio e recusa posição inválida', async () => {
-    const service = new ParadasService(fakeClient() as unknown as NubusClient);
+    const nubus = fakeClient() as unknown as NubusClient;
+    const service = new ParadasService(nubus, new CatalogoRotasService(nubus));
     expect(await service.proximas(-5.8, -35.2, 100)).toHaveLength(1);
     // O raio pedido é limitado a 1,5 km.
     expect(await service.proximas(-5.8, -35.2, 50_000)).toHaveLength(2);
