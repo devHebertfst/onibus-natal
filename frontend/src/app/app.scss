@@ -139,49 +139,6 @@ i {
   min-width: 0;
 }
 
-/* Escudo de rodovia branco com o número da linha. */
-.escudo-linha {
-  position: relative;
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 40px;
-  height: 44px;
-  margin: -2px 0;
-
-  svg {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    fill: #fff;
-    stroke: var(--placa-escura);
-    stroke-width: 1.5;
-  }
-
-  /* Antes de abrir uma linha: o escudo leva um ônibus no lugar do número. */
-  &.vazio .bus {
-    position: relative;
-    inset: auto;
-    width: 20px;
-    height: 20px;
-    margin-top: -6px;
-    fill: none;
-    stroke: #1b1f22;
-    stroke-width: 2;
-  }
-
-  b {
-    position: relative;
-    margin-top: -5px;
-    color: #1b1f22;
-    font-size: 16px;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
-  }
-}
-
 /* ---------- controles do mapa ---------- */
 .controles {
   position: absolute;
