@@ -261,7 +261,13 @@ export function horarioLocal(
 function armazemPostgres(p: ParametrosHistorico): ArmazemTrechos | null {
   if (!p.databaseUrl) return null;
   const pool = new pg.Pool({
-    connectionString: p.databaseUrl,
+    // O Neon entrega a URL com sslmode=require, que o `pg` já trata como
+    // verify-full (com um aviso enorme no log); dizer isso explicitamente
+    // mantém a mesma segurança sem o aviso.
+    connectionString: p.databaseUrl.replace(
+      /sslmode=require\b/,
+      'sslmode=verify-full',
+    ),
     max: 2,
     // O Neon derruba conexões ociosas: melhor fechar antes.
     idleTimeoutMillis: 30_000,
