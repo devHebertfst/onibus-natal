@@ -23,6 +23,7 @@ import { TemaService } from './core/tema.service';
 import { destino, distanciaTexto, nomeParada } from './core/texto';
 import { AreaMapa, COR_SEM_ROTA, DadosMapa, Mapa, corDoSentido } from './mapa/mapa';
 import { Placa, SentidoNaPlaca } from './placa/placa';
+import { PainelDiagnostico } from './diagnostico/painel-diagnostico';
 import { LocalTrajeto, PontosTrajeto, TipoPontoTrajeto, Viagem } from './core/trajeto.models';
 import { Planejador } from './planejador/planejador';
 import { CatalogoService, LinhaCatalogo } from './core/catalogo.service';
@@ -51,13 +52,15 @@ const ZOOM_AREA = 14;
 
 @Component({
   selector: 'app-root',
-  imports: [Mapa, Placa, Planejador, Navegacao, NgTemplateOutlet],
+  imports: [Mapa, Placa, Planejador, Navegacao, NgTemplateOutlet, PainelDiagnostico],
   templateUrl: './app.html',
   styleUrls: ['./app.scss', './app-paineis.scss', './app-mapa-ui.scss', './app-catalogo.scss'],
   host: { '(document:keydown)': 'tecla($event)' },
 })
 export class App {
   private readonly linhaService = inject(LinhaService);
+  /** Painel de precisão, com `?debug=1`. */
+  protected debug = false;
   private readonly previsaoService = inject(PrevisaoService);
   private readonly catalogoService = inject(CatalogoService);
   private consultaCatalogo?: AbortController;
@@ -518,6 +521,7 @@ export class App {
     });
 
     const params = new URLSearchParams(location.search);
+    this.debug = params.get('debug') === '1';
     this.paradaPendente = params.get('parada');
     const inicial = params.get('linha');
     if (inicial) this.acompanhar(inicial);

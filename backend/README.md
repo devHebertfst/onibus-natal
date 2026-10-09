@@ -27,6 +27,8 @@ npm run test:e2e      # teste HTTP com a API externa simulada
 | `PREVISAO_TTL_MS` | `15000`                                        | Cache da previsão de chegada                |
 | `PARADAS_TTL_MS`  | `86400000`                                     | Validade do índice de paradas e linhas       |
 | `AQUECER_PARADAS` | `true`                                         | `false` desliga o aquecimento na inicialização |
+| `AMOSTRA_GPS_MS`  | `60000`                                        | Intervalo da amostragem da hora do GPS      |
+| `AMOSTRA_GPS`     | `true`                                         | `false` desliga a amostragem da hora do GPS |
 | `CORS_ORIGIN`      | (qualquer)                                     | Origens permitidas, separadas por vírgula   |
 
 Os endpoints de previsão oficial, paradas próximas e planejamento A→B estão

@@ -98,7 +98,7 @@ export function parseParadasCidade(
 const FUSO_NATAL = '-03:00';
 
 /** Preserva fusos explícitos e lê os horários sem fuso como hora de Natal. */
-function horarioNubus(valor: string | null | undefined): number {
+export function horarioNubus(valor: string | null | undefined): number {
   if (!valor) return NaN;
   const normalizado = valor.trim().replace(/(\.\d{3})\d+/, '$1');
   return Date.parse(

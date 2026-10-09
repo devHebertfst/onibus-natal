@@ -78,3 +78,34 @@ describe('RastreadorVelocidade', () => {
     expect(r.posicaoDesde('A')).toBeUndefined();
   });
 });
+
+describe('RastreadorVelocidade com hora do GPS', () => {
+  it('usa a hora estimada e troca pela hora real quando ela chega', () => {
+    const r = new RastreadorVelocidade();
+    // visto aos 20s, mas o GPS mediu aos 0s e aos 10s (atraso de 10-20s)
+    r.registrar('A', norte(0), 20_000, 5_000);
+    r.registrar('A', norte(100), 40_000, 30_000);
+    expect(r.posicaoDesde('A')).toBe(30_000);
+    expect(r.corrigir('A', norte(100), 10_000)).toBe(30_000); // atraso medido
+    expect(r.posicaoDesde('A')).toBe(10_000);
+    // a mesma posição não é medida duas vezes
+    expect(r.corrigir('A', norte(100), 10_000)).toBeUndefined();
+  });
+
+  it('a hora corrigida não passa da posição anterior', () => {
+    const r = new RastreadorVelocidade();
+    r.registrar('A', norte(0), 0, 0);
+    r.registrar('A', norte(100), 20_000, 15_000);
+    r.corrigir('A', norte(100), -5_000);
+    expect(r.posicaoDesde('A')).toBe(1_000);
+  });
+
+  it('conta "parado" de quando o backend viu, não da hora do GPS', () => {
+    const r = new RastreadorVelocidade();
+    r.registrar('A', norte(0), 0, 0);
+    // vista aos 40s com GPS de 30s antes: andando, apesar do atraso
+    r.registrar('A', norte(200), 40_000, 10_000);
+    expect(r.velocidadeKmh('A', 95_000)).toBeGreaterThan(0);
+    expect(r.velocidadeKmh('A', 101_000)).toBe(0);
+  });
+});

@@ -11,6 +11,7 @@ import { haversine } from '../linhas/geo.js';
 import { emParalelo, numeroDaLinha } from '../linhas/linhas.service.js';
 import { montarChegadas } from '../linhas/previsao.service.js';
 import { NubusClient } from '../nubus/nubus.client.js';
+import { RelogioGps } from '../nubus/relogio-gps.js';
 import { CatalogoRotasService } from '../nubus/catalogo-rotas.service.js';
 import {
   type ParadaCidade,
@@ -81,6 +82,7 @@ export class ParadasService implements OnApplicationBootstrap {
   constructor(
     private readonly nubus: NubusClient,
     private readonly catalogo: CatalogoRotasService,
+    private readonly relogio: RelogioGps = new RelogioGps(),
   ) {}
 
   onApplicationBootstrap(): void {
@@ -216,6 +218,7 @@ export class ParadasService implements OnApplicationBootstrap {
           it.descricao,
           codigo,
         );
+        this.relogio.registrarPrevisoes(brutas, Date.now());
         chegadas = montarChegadas(brutas, Date.now());
       } catch {
         // Fica sem previsão só este itinerário.

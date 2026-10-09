@@ -26,6 +26,7 @@ import {
 } from '../nubus/nubus.parse.js';
 import type { ItinerarioDto, LinhaDto, OnibusDto } from './linha.dto.js';
 import { RastreadorVelocidade } from './velocidade.js';
+import { RelogioGps } from '../nubus/relogio-gps.js';
 
 export interface ItinerarioRef {
   codigo: string;
@@ -68,7 +69,10 @@ export class LinhasService {
   /** Cada snapshot novo (ou marcado como desatualizado) de qualquer linha. */
   private readonly atualizacoes = new Subject<LinhaDto>();
 
-  constructor(private readonly nubus: NubusClient) {}
+  constructor(
+    private readonly nubus: NubusClient,
+    private readonly relogio: RelogioGps = new RelogioGps(),
+  ) {}
 
   /** Dados consolidados da linha. Na 1ª vez, consulta a API e passa a acompanhá-la. */
   async obter(numeroBruto: string): Promise<LinhaDto> {
@@ -152,6 +156,19 @@ export class LinhasService {
     );
     if (!ref) throw new NotFoundException('Itinerário não é desta linha');
     return ref;
+  }
+
+  /**
+   * Linhas já acompanhadas, com snapshot e itinerários prontos, sem contar
+   * como acesso: quem só observa (a amostragem de GPS) não pode manter uma
+   * linha viva sozinho.
+   */
+  prontas(): { snapshot: LinhaDto; itinerarios: ItinerarioRef[] }[] {
+    return [...this.linhas.values()].flatMap((l) =>
+      l.snapshot && l.itinerarios
+        ? [{ snapshot: l.snapshot, itinerarios: l.itinerarios.lista }]
+        : [],
+    );
   }
 
   /** Números das linhas acompanhadas no momento (útil para debug/monitoramento). */
@@ -294,8 +311,16 @@ export class LinhasService {
     });
 
     const onibus: OnibusDto[] = [];
+    // A posição foi medida antes de o backend vê-la: desconta o atraso típico
+    // e, quando a previsão de chegada contou a hora real do GPS, usa ela.
+    const atraso = this.relogio.atrasoEstimadoMs();
     for (const [id, v] of veiculos) {
-      this.velocidade.registrar(id, v, agora);
+      this.velocidade.registrar(id, v, agora, agora - atraso);
+      const gps = this.relogio.ultimoDe(id);
+      if (gps) {
+        const medido = this.velocidade.corrigir(id, gps, gps.gpsEm);
+        if (medido !== undefined) this.relogio.registrarAtraso(medido);
+      }
       onibus.push({
         id,
         lat: v.lat,
