@@ -54,6 +54,17 @@
       </svg>
     </button>
   }
+  @if (!mapaVazio()) {
+    <button
+      type="button"
+      class="limpar-atual"
+      (click)="voltarAoInicio()"
+      [attr.aria-label]="numero() ? 'Fechar a linha e voltar ao mapa de paradas' : 'Limpar o mapa'"
+      [title]="numero() ? 'Fechar linha' : 'Limpar mapa'"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+    </button>
+  }
 </div>
 
 <main
@@ -66,7 +77,7 @@
   <button
     type="button"
     class="alca"
-    (pointerdown)="arrastoInicio($event)"
+    (pointerdown)="arrastoInicio($event, true)"
     (pointermove)="arrastoMove($event)"
     (pointerup)="arrastoFim($event)"
     (pointercancel)="arrastoFim($event, true)"
@@ -81,7 +92,14 @@
     "
   ></button>
 
-  <div class="cabecalho-painel">
+  <div
+    class="cabecalho-painel"
+    (pointerdown)="arrastoInicio($event)"
+    (pointermove)="arrastoMove($event)"
+    (pointerup)="arrastoFim($event)"
+    (pointercancel)="arrastoFim($event, true)"
+    (lostpointercapture)="arrastoFim($event, true)"
+  >
     <span class="icone-painel"
       ><svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="iconeMenu()" /></svg
     ></span>
@@ -790,19 +808,6 @@
       <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
     </svg>
   </button>
-  @if (!mapaVazio()) {
-    <button
-      type="button"
-      (click)="voltarAoInicio()"
-      title="Voltar ao início"
-      aria-label="Voltar ao início: fechar a linha e mostrar as paradas no mapa"
-    >
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M3 11 12 4l9 7" />
-        <path d="M5 10v10h5v-6h4v6h5V10" />
-      </svg>
-    </button>
-  }
   @if (linha()) {
     <button
       type="button"

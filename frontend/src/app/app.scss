@@ -966,7 +966,7 @@ footer {
   .controles {
     top: auto;
     right: 10px;
-    bottom: calc(var(--altura-gaveta, 64dvh) + var(--menu-h) + 10px);
+    bottom: calc(var(--altura-gaveta, 46dvh) + var(--menu-h) + 10px);
     transition: bottom 0.32s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .controles.painel-fechado {
@@ -1002,7 +1002,7 @@ footer {
     }
 
     &[data-gaveta='media'] {
-      --desloca: max(0px, calc(var(--h-gaveta-alta) - 64dvh));
+      --desloca: max(0px, calc(var(--h-gaveta-alta) - 46dvh));
     }
   }
 
@@ -1038,6 +1038,22 @@ footer {
   }
 
   .toast {
-    bottom: calc(var(--altura-gaveta, 64dvh) + var(--menu-h) + 12px);
+    bottom: calc(var(--altura-gaveta, 46dvh) + var(--menu-h) + 12px);
+  }
+
+  /* O cabeçalho do painel também arrasta a gaveta. */
+  .cabecalho-painel {
+    touch-action: none;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Durante o arrasto, o que acompanha a gaveta acompanha sem atraso. */
+  :host(.arrastando) {
+    .controles,
+    .toast {
+      transition: none;
+    }
   }
 }

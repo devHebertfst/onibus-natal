@@ -44,6 +44,8 @@ interface Seguido {
 
 /** Por quanto tempo a placa explica por que o número mudou. */
 const AVISO_PLACA_MS = 45_000;
+/** Gaveta média no celular: fração da tela (igual a `46dvh` no CSS). */
+const ALTURA_MEDIA = 0.46;
 /** Abaixo deste zoom a tela inicial não busca paradas: seriam centenas de marcadores. */
 const ZOOM_AREA = 14;
 
@@ -80,10 +82,11 @@ export class App {
   protected readonly erro = signal<string | null>(null);
   protected readonly carregando = signal(false);
   protected readonly status = signal<StatusConexao | null>(null);
-  /** A busca abre completa; acompanhar uma linha recolhe o painel para mostrar o mapa. */
-  protected readonly gaveta = signal<Gaveta>('alta');
+  /** Os menus abrem na metade da tela, para o mapa continuar à vista. */
+  protected readonly gaveta = signal<Gaveta>('media');
   protected readonly menuAtual = signal<Menu>('linhas');
-  protected readonly painelAberto = signal(true);
+  /** No celular o app abre no mapa; o painel só sobe quando o passageiro pede. */
+  protected readonly painelAberto = signal(!celular());
   protected readonly modoMapa = signal<'linha' | 'paradas' | 'trajeto'>('linha');
   protected readonly mostrarParadas = signal(true);
   protected readonly filtroPerto = signal('');
@@ -812,7 +815,7 @@ export class App {
     this.planejador()?.pausarSelecao();
     this.menuAtual.set(menu);
     this.painelAberto.set(true);
-    this.gaveta.set(this.alturas.get(menu) ?? 'alta');
+    this.gaveta.set(this.alturas.get(menu) ?? 'media');
     this.anuncio.set(this.tituloMenu());
     requestAnimationFrame(() => {
       const conteudo = this.host.querySelector('.conteudo');
@@ -988,33 +991,124 @@ export class App {
     this.gaveta.update((g) => (g === 'baixa' ? 'media' : g === 'media' ? 'alta' : 'baixa'));
   }
 
-  // ---- arrastar a alça da gaveta (celular) ----
-  private arrasto: { id: number; y: number; inicio: Gaveta; moveu: boolean } | null = null;
+  // ---- arrastar a gaveta pela alça ou pelo cabeçalho (celular) ----
+  // A gaveta segue o dedo; ao soltar, desliza até a altura mais próxima de
+  // onde o gesto ia parar (a velocidade conta: um peteleco também vale).
+  private arrasto: {
+    id: number;
+    y: number;
+    /** Altura visível no começo do gesto e agora (px). */
+    inicioPx: number;
+    px: number;
+    /** Últimas posições do dedo, para a velocidade ao soltar. */
+    amostras: { y: number; t: number }[];
+    moveu: boolean;
+    alca: boolean;
+  } | null = null;
 
-  protected arrastoInicio(e: PointerEvent): void {
-    if (this.arrasto) return; // um segundo dedo não assume o arrasto
-    this.arrasto = { id: e.pointerId, y: e.clientY, inicio: this.gaveta(), moveu: false };
+  protected arrastoInicio(e: PointerEvent, alca = false): void {
+    if (this.arrasto || !celular()) return; // um segundo dedo não assume o arrasto
+    // Botões do cabeçalho (fechar) continuam sendo botões.
+    if (!alca && (e.target as HTMLElement).closest('button, input, a')) return;
+    // Sem isso o mouse seleciona o título, e o próximo arrasto vira "arrastar texto".
+    e.preventDefault();
+    const px = this.alturaVisivel(this.gaveta());
+    this.arrasto = {
+      id: e.pointerId,
+      y: e.clientY,
+      inicioPx: px,
+      px,
+      amostras: [{ y: e.clientY, t: e.timeStamp }],
+      moveu: false,
+      alca,
+    };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
   }
 
   protected arrastoMove(e: PointerEvent): void {
-    if (!this.arrasto || e.pointerId !== this.arrasto.id) return;
-    const dy = e.clientY - this.arrasto.y;
-    if (Math.abs(dy) < 24) return;
-    const ordem: Gaveta[] = ['baixa', 'media', 'alta'];
-    const i = ordem.indexOf(this.arrasto.inicio) + (dy < 0 ? 1 : -1);
-    this.gaveta.set(ordem[Math.max(0, Math.min(2, i))]);
-    this.arrasto.moveu = true;
+    const a = this.arrasto;
+    if (!a || e.pointerId !== a.id) return;
+    const dy = e.clientY - a.y;
+    // Alguns pixels de tremida ainda são um toque.
+    if (!a.moveu && Math.abs(dy) < 6) return;
+    a.moveu = true;
+    const total = this.host.querySelector<HTMLElement>('.painel')?.offsetHeight ?? 0;
+    a.px = Math.max(0, Math.min(total, a.inicioPx - dy));
+    a.amostras.push({ y: e.clientY, t: e.timeStamp });
+    if (a.amostras.length > 6) a.amostras.shift();
+    this.posicionarGaveta(a.px);
   }
 
-  /** Fim do gesto. Um toque sem arrastar alterna a altura; um cancelamento só limpa. */
+  /** Fim do gesto. Um toque na alça sem arrastar alterna a altura; um cancelamento volta ao lugar. */
   protected arrastoFim(e: PointerEvent, cancelado = false): void {
     const a = this.arrasto;
     if (!a || e.pointerId !== a.id) return;
     this.arrasto = null;
-    if (cancelado) return;
-    this.fimToqueAlca = performance.now();
-    if (!a.moveu) this.ciclarGaveta();
+    if (!a.moveu || cancelado) {
+      this.posicionarGaveta(null);
+      if (!cancelado && a.alca) {
+        this.fimToqueAlca = performance.now();
+        this.ciclarGaveta();
+      }
+      return;
+    }
+
+    // Velocidade nos últimos ~100 ms (px/ms; positivo = dedo descendo).
+    const fim = a.amostras.at(-1)!;
+    const inicio = a.amostras.find((s) => fim.t - s.t <= 100) ?? a.amostras[0];
+    const velocidade = fim.t > inicio.t ? (fim.y - inicio.y) / (fim.t - inicio.t) : 0;
+    const destino = a.px - velocidade * 180;
+
+    // Abaixo da altura mínima: a gaveta sai de cena e o mapa fica livre.
+    if (destino < this.alturaVisivel('baixa') * 0.6) {
+      const painel = this.host.querySelector<HTMLElement>('.painel');
+      if (painel) {
+        painel.style.transition = 'transform 0.2s ease-in, clip-path 0.2s ease-in';
+        painel.style.transform = `translateY(${painel.offsetHeight}px)`;
+      }
+      setTimeout(() => {
+        this.fecharMenu();
+        this.posicionarGaveta(null);
+      }, 200);
+      return;
+    }
+    const alvo = (['baixa', 'media', 'alta'] as Gaveta[]).reduce((melhor, g) =>
+      Math.abs(this.alturaVisivel(g) - destino) < Math.abs(this.alturaVisivel(melhor) - destino)
+        ? g
+        : melhor,
+    );
+    // Tira a posição do dedo e muda a altura no mesmo quadro: o CSS anima
+    // de onde a gaveta está até a altura escolhida.
+    this.posicionarGaveta(null);
+    this.gaveta.set(alvo);
+  }
+
+  /** Altura visível da gaveta em cada posição (px). */
+  private alturaVisivel(g: Gaveta): number {
+    const total = this.host.querySelector<HTMLElement>('.painel')?.offsetHeight ?? innerHeight;
+    if (g === 'alta') return total;
+    if (g === 'media') return Math.min(total, innerHeight * ALTURA_MEDIA);
+    return Math.min(total, this.alturaBaixaPx || 150);
+  }
+
+  /** Durante o arrasto, a gaveta fica exatamente sob o dedo; `null` devolve o controle ao CSS. */
+  private posicionarGaveta(px: number | null): void {
+    const painel = this.host.querySelector<HTMLElement>('.painel');
+    if (!painel) return;
+    if (px === null) {
+      painel.style.removeProperty('transition');
+      painel.style.removeProperty('transform');
+      painel.style.removeProperty('clip-path');
+      this.host.classList.remove('arrastando');
+      return;
+    }
+    const desloca = painel.offsetHeight - px;
+    painel.style.transition = 'none';
+    painel.style.transform = `translateY(${desloca}px)`;
+    painel.style.clipPath = `inset(0 0 ${desloca}px 0 round 18px)`;
+    // Os controles do mapa sobem e descem junto, sem atraso.
+    this.host.classList.add('arrastando');
+    this.host.style.setProperty('--altura-gaveta', `${px}px`);
   }
 
   protected tecla(e: KeyboardEvent): void {
@@ -1058,7 +1152,7 @@ export class App {
       const topo = this.host.querySelector('.linha-atual')?.getBoundingClientRect().bottom ?? 132;
       const menu = this.host.querySelector('.navegacao nav')?.getBoundingClientRect().height ?? 80;
       const disponivel =
-        this.host.querySelector<HTMLElement>('.painel')?.offsetHeight ?? innerHeight * 0.64;
+        this.host.querySelector<HTMLElement>('.painel')?.offsetHeight ?? innerHeight * ALTURA_MEDIA;
       const painel = this.painelAberto()
         ? Math.min(
             disponivel,
@@ -1066,7 +1160,7 @@ export class App {
               ? this.alturaBaixaPx
               : gaveta === 'alta'
                 ? disponivel
-                : innerHeight * 0.64,
+                : innerHeight * ALTURA_MEDIA,
           )
         : (this.host.querySelector('.contexto-mapa')?.getBoundingClientRect().height ?? 0);
       const base = painel + menu + 20;
@@ -1082,7 +1176,8 @@ export class App {
    * quando a placa pode mudar de tamanho.
    */
   private medirGaveta(): void {
-    if (!celular()) return;
+    // Durante o arrasto quem manda é o dedo.
+    if (!celular() || this.arrasto?.moveu) return;
     if (!this.painelAberto()) {
       this.host.style.setProperty('--altura-gaveta', '0px');
       this.host.style.setProperty(
@@ -1093,19 +1188,24 @@ export class App {
     }
     const painel = this.host.querySelector<HTMLElement>('.painel');
     const pagina = painel?.querySelector('.pagina-menu:not([hidden])');
-    const ancora = pagina?.querySelector('[data-ancora]') ?? pagina?.lastElementChild;
+    // Sem uma resposta para mostrar (placa, botão do ponto), a gaveta baixa
+    // é só o cabeçalho (e a busca, nas linhas): o resto do espaço é do mapa.
+    const ancora =
+      pagina?.querySelector('[data-ancora]') ??
+      painel?.querySelector('.linha-busca:not([hidden])') ??
+      painel?.querySelector('.cabecalho-painel');
     if (!painel || !ancora) return;
     const bruto =
       ancora.getBoundingClientRect().bottom -
       painel.getBoundingClientRect().top +
       (painel.querySelector('.conteudo')?.scrollTop ?? 0) +
       16;
-    const altura = Math.round(Math.max(150, Math.min(bruto, innerHeight * 0.6)));
+    const altura = Math.round(Math.max(96, Math.min(bruto, innerHeight * 0.6)));
     const visivel =
       this.gaveta() === 'alta'
         ? painel.offsetHeight
         : this.gaveta() === 'media'
-          ? Math.min(painel.offsetHeight, innerHeight * 0.64)
+          ? Math.min(painel.offsetHeight, innerHeight * ALTURA_MEDIA)
           : Math.min(painel.offsetHeight, altura);
     this.host.style.setProperty('--altura-gaveta', `${visivel}px`);
     if (Math.abs(altura - this.alturaBaixaPx) < 3) return;

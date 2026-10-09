@@ -61,10 +61,14 @@
       font-size: 12px;
     }
   }
-  .favoritar-atual {
+  .favoritar-atual,
+  .limpar-atual {
     width: 44px;
     flex: none;
     color: var(--texto-3);
+  }
+  .limpar-atual {
+    border-left: 1px solid var(--linha);
   }
   .favoritar-atual[aria-pressed='true'] svg {
     fill: var(--adv);
