@@ -10,3 +10,6 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "24"
+      # Postgres do Neon para o histórico de velocidade por trecho (opcional).
+      - key: DATABASE_URL
+        sync: false

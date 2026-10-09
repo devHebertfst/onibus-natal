@@ -29,6 +29,8 @@ npm run test:e2e      # teste HTTP com a API externa simulada
 | `AQUECER_PARADAS` | `true`                                         | `false` desliga o aquecimento na inicialização |
 | `AMOSTRA_GPS_MS`  | `60000`                                        | Intervalo da amostragem da hora do GPS      |
 | `AMOSTRA_GPS`     | `true`                                         | `false` desliga a amostragem da hora do GPS |
+| `DATABASE_URL`    | (nenhum)                                       | Postgres (Neon) do histórico de velocidade por trecho; sem ele, só memória |
+| `HISTORICO_GRAVAR_MS` | `300000`                                   | Intervalo da gravação do histórico em lote  |
 | `CORS_ORIGIN`      | (qualquer)                                     | Origens permitidas, separadas por vírgula   |
 
 Os endpoints de previsão oficial, paradas próximas e planejamento A→B estão

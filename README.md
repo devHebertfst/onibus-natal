@@ -232,12 +232,36 @@ os próprios ônibus da linha: duas posições consecutivas de um ônibus dizem
 - Vai em `itinerarios[].trechos` (km/h por trecho, `null` sem medida, e a
   média do itinerário). O frontend usa na previsão de chegada (tempo trecho
   a trecho até a parada) e no dead reckoning de ônibus de velocidade
-  desconhecida. Sem medida, vale a média do itinerário; sem média, 18 km/h.
-  As contas limitam a velocidade a 5–60 km/h.
+  desconhecida. Sem medida, vale o histórico (abaixo); sem ele, a média do
+  itinerário; sem média, 18 km/h. As contas limitam a velocidade a 5–60 km/h.
+
+**Histórico por horário (Postgres/Neon).** Com `DATABASE_URL`, o backend
+guarda quanto os ônibus levam em cada trecho por tipo de dia (útil, sábado,
+domingo) e faixa de 30 min, no horário de Natal. Assim, uma linha recém-
+aberta (ou o servidor recém-acordado) já começa com o ritmo típico daquele
+horário em vez de 18 km/h, e as medidas ao vivo vão tomando o lugar.
+- Grava em lote a cada 5 min (`HISTORICO_GRAVAR_MS`) e ao desligar; lê o
+  histórico de cada itinerário uma vez (a 1ª atualização da linha espera
+  até 2 s por ele) e relê a cada 6 h. A faixa atual vale inteira e as
+  vizinhas com meio peso.
+- Medidas antigas perdem metade do peso a cada 14 dias. Se o traçado do
+  itinerário mudar, o histórico dele recomeça.
+- Uma tabela só (`velocidade_trecho`), criada sozinha na 1ª conexão.
+- Sem `DATABASE_URL`, ou com o banco fora do ar, tudo funciona só com as
+  medidas ao vivo; `/api/diagnostico` mostra em `historico` se está gravando
+  e a última falha.
+
+Para ligar no Neon: crie um projeto em neon.tech (região perto do backend),
+copie a *connection string* (`postgresql://…?sslmode=require`) e coloque em
+`DATABASE_URL` nas variáveis de ambiente do Render. No plano free o Render
+dorme após ~15 min sem acessos, e dormindo ninguém coleta posições; um ping
+externo (UptimeRobot, cron-job.org) em `/api/linhas` a cada 10 min o mantém
+acordado.
 
 **Medir a precisão.** `GET /api/diagnostico` mostra o atraso medido do GPS
 (mediana, p90, quanto está sendo descontado) e, por itinerário, quanto do
-traçado já tem velocidade medida (`trechos`: cobertura em % e média). No app, `?debug=1` abre um
+traçado já tem velocidade medida (`trechos`: cobertura em % e média) e o
+estado do histórico no banco (`historico`). No app, `?debug=1` abre um
 painel com o erro do desenho a cada posição nova (metros, segundos e quanto
 fica atrás) e a diferença entre a nossa estimativa e a da Nubus.
 

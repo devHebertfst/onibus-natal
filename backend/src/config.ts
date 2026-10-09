@@ -99,4 +99,24 @@ export const config = {
     /** Fração do trecho já percorrida (com o peso) para a velocidade valer. */
     coberturaMin: 0.5,
   },
+
+  /**
+   * Histórico da velocidade por trecho, por tipo de dia e faixa de horário,
+   * num Postgres (Neon). Sem `DATABASE_URL`, fica tudo só em memória.
+   */
+  historico: {
+    databaseUrl: process.env.DATABASE_URL || undefined,
+    /** O que foi medido vai para o banco em lote, a cada intervalo. */
+    gravarMs: num(process.env.HISTORICO_GRAVAR_MS, 5 * 60_000),
+    /** O histórico de um itinerário é relido do banco depois disso. */
+    recarregarMs: 6 * 60 * 60_000,
+    /** Depois de uma falha no banco, espera isso para tentar ler de novo. */
+    esperaAposFalhaMs: 5 * 60_000,
+    /** Tamanho de cada faixa de horário (minutos). */
+    faixaMin: 30,
+    /** A cada meia-vida, o que foi medido pesa metade (a cidade muda). */
+    meiaVidaMs: 14 * 24 * 60 * 60_000,
+    /** Fuso de Natal (UTC−3, sem horário de verão). */
+    fusoMin: -180,
+  },
 };

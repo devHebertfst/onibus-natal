@@ -359,7 +359,7 @@ A peça que define o produto: uma placa de indicação com o ponto do passageiro
 ### Avisos
 - **Erro:** placa de regulamentação: borda vermelha de 2px, fundo reg-fundo, anel vermelho à frente, texto em asfalto, 15px/1.4.
 - **Advertência:** amarelo com preto, cantos de 8px (aviso) ou 4px (nota sob a placa).
-- **Nota de estimativa:** 14px em texto-3, logo abaixo da placa, começando pela idade do dado em texto-2/700 ("Posições de há 12 s. Tempo estimado pelo ritmo dos ônibus da linha em cada trecho até o ponto, nos últimos minutos"; antes de haver medida, "…pela distância até o ponto, a ~18 km/h").
+- **Nota de estimativa:** 14px em texto-3, logo abaixo da placa, começando pela idade do dado em texto-2/700 ("Posições de há 12 s. Tempo estimado pelo ritmo dos ônibus da linha em cada trecho até o ponto"; antes de haver medida, "…pela distância até o ponto, a ~18 km/h").
 - **Legenda ("Como ler o mapa"):** `details` fechado por padrão, com chevron como o botão Expandir; explica as cores de sentido, o cinza sem rota, a seta do marcador, o rótulo laranja, a letra do rumo e "medindo…". Os atalhos de teclado moram aqui (só com `hover: hover` e `pointer: fine`); nada de significado fica só em `title`.
 - **Toast:** invertido (asfalto com letra no tom do chão), 15px/600, centralizado; no celular sobe acima da gaveta.
 

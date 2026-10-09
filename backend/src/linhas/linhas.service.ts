@@ -28,6 +28,7 @@ import type { ItinerarioDto, LinhaDto, OnibusDto } from './linha.dto.js';
 import { RastreadorVelocidade } from './velocidade.js';
 import { VelocidadeTrechos } from './trechos.js';
 import { RelogioGps } from '../nubus/relogio-gps.js';
+import { HistoricoTrechos } from '../historico/historico-trechos.js';
 
 export interface ResumoTrechos {
   linha: string;
@@ -55,12 +56,14 @@ interface LinhaAcompanhada {
   snapshotEm?: number;
   /** Atualização em andamento, compartilhada por quem pedir ao mesmo tempo. */
   emAndamento?: Promise<LinhaDto>;
-  /** Velocidade por trecho, aprendida com os ônibus desta linha. */
+  /** Velocidade por trecho, aprendida com os ônibus desta linha (e o histórico). */
   trechos: VelocidadeTrechos;
 }
 
 // Com ponto por causa de linhas como a "745.1".
 const NUMERO_VALIDO = /^[A-Za-z0-9.-]{1,10}$/;
+/** Quanto a 1ª atualização de uma linha espera o histórico chegar do banco. */
+const ESPERA_HISTORICO_MS = 2_000;
 /** Quantas linhas o loop atualiza em paralelo (gentileza com a API de origem). */
 const CONCORRENCIA = 4;
 
@@ -83,6 +86,7 @@ export class LinhasService {
   constructor(
     private readonly nubus: NubusClient,
     private readonly relogio: RelogioGps = new RelogioGps(),
+    private readonly historico: HistoricoTrechos = new HistoricoTrechos(null),
   ) {}
 
   /** Dados consolidados da linha. Na 1ª vez, consulta a API e passa a acompanhá-la. */
@@ -139,7 +143,7 @@ export class LinhasService {
         numero,
         ultimoAcesso: Date.now(),
         assinantes: 0,
-        trechos: new VelocidadeTrechos(),
+        trechos: new VelocidadeTrechos(config.trechos, this.historico),
       };
       this.linhas.set(numero, linha);
     }
@@ -301,7 +305,6 @@ export class LinhasService {
       );
     }
 
-    const agora = Date.now();
     const itinerariosDto: ItinerarioDto[] = [];
     // Dedup: o mesmo veículo pode aparecer em mais de um itinerário da linha.
     const veiculos = new Map<
@@ -345,6 +348,9 @@ export class LinhasService {
     });
 
     linha.trechos.definirTracados(itinerariosDto);
+    // Já lido (o normal), não espera nada; recém-aberta, espera um pouco.
+    await linha.trechos.prepararHistorico(Date.now(), ESPERA_HISTORICO_MS);
+    const agora = Date.now();
     const onibus: OnibusDto[] = [];
     // A posição foi medida antes de o backend vê-la: desconta o atraso típico
     // e, quando a previsão de chegada contou a hora real do GPS, usa ela.
