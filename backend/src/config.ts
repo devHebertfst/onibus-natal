@@ -40,6 +40,14 @@ export const config = {
    */
   previsaoTtlMs: num(process.env.PREVISAO_TTL_MS, 15_000),
 
+  /**
+   * A cada intervalo, pede a previsão no ponto final de cada sentido das
+   * linhas acompanhadas: ela traz a hora real do GPS dos ônibus a caminho,
+   * que calibra o atraso das posições. `AMOSTRA_GPS=false` desliga.
+   */
+  amostraGpsMs: num(process.env.AMOSTRA_GPS_MS, 60_000),
+  amostrarGps: process.env.AMOSTRA_GPS !== 'false' && !process.env.VITEST,
+
   /** Paradas da cidade e quais linhas passam em cada uma: muda pouco. */
   paradasTtlMs: num(process.env.PARADAS_TTL_MS, 24 * 60 * 60_000),
 
@@ -60,6 +68,8 @@ export const config = {
     paradoAposMs: 60_000,
     /** Deslocamentos menores que isso são ruído de GPS, não movimento. */
     ruidoMinimoM: 10,
+    /** Posição com hora de GPS conhecida a menos disso é a mesma do histórico. */
+    mesmaPosicaoM: 15,
     /** Saltos acima dessa velocidade são tratados como teletransporte/erro. */
     velocidadeMaximaKmh: 110,
     /** Esquece veículos que não aparecem há esse tempo. */

@@ -1,11 +1,16 @@
+import { diagnostico } from '../../core/diagnostico';
 import { Rota, distanciaM } from './rota';
 
 /** Mais longe que isso do traçado, o ônibus é considerado fora da rota. */
 const DISTANCIA_MAX_ROTA_M = 60;
 /** Abaixo disso, uma "nova" posição é só o mesmo GPS repetido ou ruído. */
 const MOVIMENTO_MIN_M = 8;
-/** Não extrapola além disso sem nova posição real (ônibus pode ter parado). */
-const EXTRAPOLACAO_MAX_S = 40;
+/**
+ * Não extrapola além disso sem nova posição real (ônibus pode ter parado).
+ * Conta da hora em que o GPS mediu a posição, que chega ao app 10–30 s
+ * depois: por isso a folga além dos ~30 s entre duas leituras de GPS.
+ */
+const EXTRAPOLACAO_MAX_S = 60;
 /** Constante de tempo da correção suave (s). */
 const TAU_CORRECAO_S = 2.5;
 /** Diferença acima disso entre exibido e real: em vez de correr, faz transição. */
@@ -117,6 +122,8 @@ export class OnibusAnimado {
 
     if (mesmaRota && this.sExibido !== null && Math.abs(this.sExibido - alvo) < SALTO_MAX_M) {
       this.erro = this.sExibido - alvo; // continua de onde está, corrigindo aos poucos
+      // Quanto o desenho estava à frente (+) ou atrás (−) da posição real.
+      diagnostico.registrarDesenho(this.erro, this.velocidadeEfetiva());
     } else {
       this.iniciarTransicao(agora);
       this.erro = 0;

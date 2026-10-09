@@ -99,7 +99,7 @@ describe('OnibusAnimado', () => {
     o.atualizar(em(0), kmh36, 0, [ida], 0);
     o.atualizar(em(200), kmh36, 20_000, [ida], 20_000);
     const q = o.quadro(600_000)!;
-    expect(ida.projetar(q.lat, q.lng).s).toBeCloseTo(600, 0); // 200 + 40 s · 10 m/s
+    expect(ida.projetar(q.lat, q.lng).s).toBeCloseTo(800, 0); // 200 + 60 s · 10 m/s
   });
 });
 

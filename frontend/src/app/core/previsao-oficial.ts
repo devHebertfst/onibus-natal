@@ -1,4 +1,5 @@
 import { Previsao } from '../mapa/dead-reckoning/previsao';
+import { diagnostico } from './diagnostico';
 import { Chegada } from './linha.models';
 
 /** Sem resposta nova da Nubus por mais que isso, a placa volta para a estimativa própria. */
@@ -45,11 +46,13 @@ export function mesclarPrevisoes(
     const chegaEm = Date.parse(c.chegaEm);
     if (!(chegaEm > agora - TOLERANCIA_ATRASO_MS)) continue;
     const meu = local.find((l) => l.onibus === c.onibus);
+    const minutos = Math.max(0, (chegaEm - agora) / 60_000);
+    if (meu) diagnostico.registrarComparacao(c.onibus, meu.minutos, minutos, agora);
     previsoes.push({
       onibus: c.onibus,
       // A distância própria anda com o ônibus no mapa; a da Nubus é da última consulta.
       metros: meu?.metros ?? c.metros,
-      minutos: Math.max(0, (chegaEm - agora) / 60_000),
+      minutos,
       paradas: meu?.paradas ?? null,
     });
   }

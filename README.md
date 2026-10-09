@@ -178,8 +178,8 @@ GPS ou troca de linha.
 
 **Dead reckoning (frontend).** Cada traçado vira uma polilinha em metros, e a
 posição do ônibus vira um número `s` (metros desde o início do traçado).
-- Entre atualizações: `s = sFix + v · (t − tFix)`, com no máximo 40s de
-  extrapolação.
+- Entre atualizações: `s = sFix + v · (t − tFix)`, com no máximo 60s de
+  extrapolação (contados da hora em que o GPS mediu a posição).
 - Quando chega uma posição real, a diferença entre a posição desenhada e a
   real (`erro`) é reduzida exponencialmente (τ = 2,5s). Assim o ônibus
   acelera ou freia até encostar na trajetória real, sem saltos. Em movimento,
@@ -192,8 +192,27 @@ posição do ônibus vira um número `s` (metros desde o início do traçado).
   anda a 18 km/h (média urbana) até chegar a velocidade real, com a mesma
   correção suave. Perto das pontas do traçado (250 m, terminais) não estima.
   A lista mostra "calculando…" em vez de "parado".
-- O horário da posição é o momento em que o backend a viu mudar
-  (`posicaoDesde`), convertido para o relógio do navegador.
+- O horário da posição (`posicaoDesde`) é a hora em que o GPS a mediu,
+  convertida para o relógio do navegador (veja "Hora do GPS" abaixo).
+
+**Hora do GPS (backend).** O traçado da Nubus traz só a posição de cada
+ônibus, sem dizer quando o GPS a mediu, e ela chega 10–30s atrasada (GPS →
+Nubus → poll de 15s). Extrapolar a partir da hora em que o backend *viu* a
+posição deixava o ônibus desenhado atrás do real. A previsão de chegada
+(`/previsoes/paradas`) traz `gpsVeiculoData` dos ônibus a caminho da parada:
+- quando ela contou a hora de uma posição, o backend usa essa hora real;
+- cada correção mede o atraso (visto − GPS), e a mediana das últimas medidas
+  é descontada das posições sem hora conhecida (antes de haver medidas, meio
+  intervalo de poll);
+- a cada 60s o backend pede a previsão no ponto final de cada sentido das
+  linhas acompanhadas, para ter horas de GPS mesmo sem ninguém olhando uma
+  parada (`AMOSTRA_GPS=false` desliga). Isso não renova o acesso da linha.
+"Parado há mais de 60s" continua contado de quando o backend viu a posição.
+
+**Medir a precisão.** `GET /api/diagnostico` mostra o atraso medido do GPS
+(mediana, p90, quanto está sendo descontado). No app, `?debug=1` abre um
+painel com o erro do desenho a cada posição nova (metros, segundos e quanto
+fica atrás) e a diferença entre a nossa estimativa e a da Nubus.
 
 **Proteção da API de origem.** As consultas por cliente nunca chegam à API:
 requisições simultâneas compartilham a mesma consulta. O backend acompanha

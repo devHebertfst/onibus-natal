@@ -830,6 +830,10 @@
   </button>
 }
 
+@if (debug) {
+  <app-painel-diagnostico />
+}
+
 @if (aviso(); as texto) {
   <div class="toast" role="status">{{ texto }}</div>
 }

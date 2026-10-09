@@ -2,10 +2,13 @@ import {
   BadGatewayException,
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 import { config } from '../config.js';
 import { NubusClient } from '../nubus/nubus.client.js';
+import { RelogioGps } from '../nubus/relogio-gps.js';
 import { parsePrevisoes } from '../nubus/nubus.parse.js';
 import type { NubusPrevisao } from '../nubus/nubus.types.js';
 import type { ChegadaDto, PrevisaoDto } from './linha.dto.js';
@@ -48,12 +51,44 @@ export function montarChegadas(
 
 @Injectable()
 export class PrevisaoService {
+  private readonly logger = new Logger(PrevisaoService.name);
   private readonly cache = new Map<string, ItemCache>();
+  private amostrando = false;
 
   constructor(
     private readonly linhas: LinhasService,
     private readonly nubus: NubusClient,
+    private readonly relogio: RelogioGps = new RelogioGps(),
   ) {}
+
+  /**
+   * Calibra o horário das posições: pede a previsão no ponto final de cada
+   * sentido das linhas acompanhadas. Os ônibus a caminho do fim do percurso
+   * vêm com a hora real do GPS (`gpsVeiculoData`), que o loop usa para
+   * medir e descontar o atraso da API. Usa o mesmo cache da previsão.
+   */
+  @Interval('amostrar-gps', config.amostraGpsMs)
+  async amostrarGps(): Promise<void> {
+    if (!config.amostrarGps || this.amostrando) return;
+    this.amostrando = true;
+    try {
+      for (const { snapshot, itinerarios } of this.linhas.prontas()) {
+        for (const it of snapshot.itinerarios) {
+          const ref = itinerarios.find((r) => r.codigo === it.codigo);
+          const fim = it.paradas.reduce<(typeof it.paradas)[number] | null>(
+            (a, p) => (!a || p.ordem > a.ordem ? p : a),
+            null,
+          );
+          if (!ref || !fim) continue;
+          await this.porRef(ref, fim.codigo).catch((e: unknown) =>
+            this.logger.debug(`Amostra de GPS falhou: ${(e as Error).message}`),
+          );
+        }
+      }
+    } finally {
+      this.amostrando = false;
+    }
+  }
 
   async obter(
     numero: string,
@@ -70,7 +105,14 @@ export class PrevisaoService {
       throw new NotFoundException('Parada não é deste itinerário');
     }
     const ref = await this.linhas.itinerario(numero, itinerario);
+    return this.porRef(ref, parada);
+  }
 
+  /** Previsão de uma parada de um itinerário, com cache de 15 s por parada. */
+  private async porRef(
+    ref: { codigo: string; descricao: string; codigolinha: string },
+    parada: string,
+  ): Promise<PrevisaoDto> {
     const agora = Date.now();
     this.esquecerAntigos(agora);
     const chave = `${ref.codigo}|${parada}`;
@@ -110,6 +152,7 @@ export class PrevisaoService {
       );
     }
     const agora = Date.now();
+    this.relogio.registrarPrevisoes(brutas, agora);
     return {
       itinerario: ref.codigo,
       parada,

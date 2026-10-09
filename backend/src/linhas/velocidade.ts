@@ -1,9 +1,14 @@
 import { config } from '../config.js';
 import { haversine, LatLng } from './geo.js';
 
-/** Uma posição GPS nova, carimbada com o instante em que o backend a viu. */
+/** Uma posição GPS nova. */
 interface Fix extends LatLng {
+  /** Quando o GPS mediu a posição: a hora real, se conhecida, ou a estimada. */
   t: number;
+  /** Quando o backend viu a posição pela 1ª vez. */
+  visto: number;
+  /** `t` é a hora real do GPS (e não uma estimativa). */
+  gps: boolean;
 }
 
 interface Historico {
@@ -19,17 +24,21 @@ export type ParametrosVelocidade = typeof config.velocidade;
  * consecutivas ÷ tempo decorrido. Isso suaviza a oscilação que apareceria se
  * a velocidade fosse calculada só entre as duas últimas posições.
  *
- * Observação: a API não informa o horário do GPS, então usamos o instante em
- * que o backend percebeu a mudança de posição. Com poll de 15s e GPS de
- * 20-30s, o erro de cada carimbo é de até 15s, diluído pela janela de 90s.
+ * Horário de cada posição: o traçado da API não informa quando o GPS a
+ * mediu. Quem chama passa uma estimativa (hora em que o backend viu menos o
+ * atraso típico medido) e, quando a previsão de chegada traz a hora real do
+ * GPS daquele ônibus, `corrigir` troca a estimativa pela hora real.
  */
 export class RastreadorVelocidade {
   private readonly veiculos = new Map<string, Historico>();
 
   constructor(private readonly p: ParametrosVelocidade = config.velocidade) {}
 
-  /** Registra a posição atual reportada para o veículo. */
-  registrar(id: string, pos: LatLng, agora: number): void {
+  /**
+   * Registra a posição atual reportada para o veículo.
+   * @param hora quando o GPS mediu a posição (estimada); padrão: `agora`.
+   */
+  registrar(id: string, pos: LatLng, agora: number, hora = agora): void {
     let h = this.veiculos.get(id);
     if (!h) {
       h = { fixes: [], vistoEm: agora };
@@ -39,7 +48,12 @@ export class RastreadorVelocidade {
 
     const ultimo = h.fixes.at(-1);
     if (!ultimo) {
-      h.fixes.push({ ...pos, t: agora });
+      h.fixes.push({
+        ...pos,
+        t: Math.min(hora, agora),
+        visto: agora,
+        gps: false,
+      });
       return;
     }
 
@@ -47,16 +61,41 @@ export class RastreadorVelocidade {
     // Mesma posição (GPS ainda não atualizou) ou ruído: não é movimento.
     if (d < this.p.ruidoMinimoM) return;
 
-    const dt = (agora - ultimo.t) / 1000;
+    // A hora estimada nunca volta para antes da posição anterior.
+    const t = Math.max(ultimo.t + 1000, Math.min(hora, agora));
+    const dt = (t - ultimo.t) / 1000;
     const kmhImplicita = dt > 0 ? (d / dt) * 3.6 : Infinity;
     if (kmhImplicita > this.p.velocidadeMaximaKmh) {
       // Salto impossível (erro de GPS ou veículo trocou de linha): recomeça.
-      h.fixes = [{ ...pos, t: agora }];
+      h.fixes = [{ ...pos, t, visto: agora, gps: false }];
       return;
     }
 
-    h.fixes.push({ ...pos, t: agora });
+    h.fixes.push({ ...pos, t, visto: agora, gps: false });
     this.podar(h, agora);
+  }
+
+  /**
+   * A previsão de chegada contou a hora real do GPS de uma posição do
+   * veículo: troca a estimativa por ela. Devolve o atraso medido (quando o
+   * backend viu − quando o GPS mediu), uma vez por posição, ou `undefined`
+   * se essa posição não está no histórico ou já foi corrigida.
+   */
+  corrigir(id: string, pos: LatLng, gpsEm: number): number | undefined {
+    const fixes = this.veiculos.get(id)?.fixes;
+    if (!fixes) return undefined;
+    for (let i = fixes.length - 1; i >= 0; i--) {
+      const f = fixes[i];
+      if (haversine(f, pos) >= this.p.mesmaPosicaoM) continue;
+      if (f.gps) return undefined;
+      // Mantém a ordem: entre a posição anterior e a seguinte.
+      const min = i > 0 ? fixes[i - 1].t + 1000 : -Infinity;
+      const max = i < fixes.length - 1 ? fixes[i + 1].t - 1000 : f.visto;
+      f.t = Math.max(min, Math.min(gpsEm, max));
+      f.gps = true;
+      return f.visto - gpsEm;
+    }
+    return undefined;
   }
 
   /**
@@ -68,11 +107,13 @@ export class RastreadorVelocidade {
   velocidadeKmh(id: string, agora: number): number | null {
     const fixes = this.veiculos.get(id)?.fixes;
     if (!fixes || fixes.length === 0) return null;
+    // "Parado" conta de quando o backend viu a posição, não da hora do GPS:
+    // o atraso da API não pode fazer um ônibus andando parecer parado.
     if (fixes.length < 2)
-      return agora - fixes[0].t > this.p.paradoAposMs ? 0 : null;
+      return agora - fixes[0].visto > this.p.paradoAposMs ? 0 : null;
 
     const ultimo = fixes[fixes.length - 1];
-    if (agora - ultimo.t > this.p.paradoAposMs) return 0;
+    if (agora - ultimo.visto > this.p.paradoAposMs) return 0;
 
     const inicio = this.indiceInicioJanela(fixes, agora);
     if (fixes.length - inicio < 2) return 0;
@@ -85,7 +126,7 @@ export class RastreadorVelocidade {
     return segundos > 0 ? (distancia / segundos) * 3.6 : 0;
   }
 
-  /** Instante (ms) em que a posição atual do veículo foi vista pela 1ª vez. */
+  /** Quando o GPS mediu a posição atual do veículo (real ou estimado). */
   posicaoDesde(id: string): number | undefined {
     return this.veiculos.get(id)?.fixes.at(-1)?.t;
   }
