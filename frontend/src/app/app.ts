@@ -260,6 +260,13 @@ export class App {
     const fontes = new Set(this.sentidosPlaca().map((s) => s.fonte));
     return fontes.size > 1 ? 'misto' : fontes.has('nubus') ? 'nubus' : 'estimativa';
   });
+  /** A estimativa própria do ponto já usa a velocidade medida pelos ônibus da linha? */
+  protected readonly velocidadeMedida = computed(() => {
+    const sentidos = new Set(this.ponto()?.sentidos.map((s) => s.itinerario));
+    return (this.linha()?.itinerarios ?? []).some(
+      (it) => sentidos.has(it.codigo) && it.trechos?.mediaKmh != null,
+    );
+  });
   protected readonly ponto = computed(() => {
     const chave = this.pontoSel();
     return chave ? (this.pontos().find((p) => p.chave === chave) ?? null) : null;

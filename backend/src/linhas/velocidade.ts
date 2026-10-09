@@ -131,6 +131,15 @@ export class RastreadorVelocidade {
     return this.veiculos.get(id)?.fixes.at(-1)?.t;
   }
 
+  /**
+   * A posição anterior à atual. Quando a posição atual chega, quase sempre já
+   * deu tempo de a hora real do GPS da anterior aparecer e corrigi-la: é a
+   * mais recente com hora confiável.
+   */
+  posicaoAnterior(id: string): (LatLng & { t: number }) | undefined {
+    return this.veiculos.get(id)?.fixes.at(-2);
+  }
+
   /** Remove veículos que sumiram da API há muito tempo. */
   esquecerAntigos(agora: number): void {
     for (const [id, h] of this.veiculos) {

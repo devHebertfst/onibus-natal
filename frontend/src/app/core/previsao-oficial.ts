@@ -19,7 +19,7 @@ export interface Oficial {
 
 export interface PrevisoesDoSentido {
   previsoes: Previsao[];
-  /** De onde vem o tempo: a previsão da Nubus ou a conta própria (~18 km/h). */
+  /** De onde vem o tempo: a previsão da Nubus ou a conta própria (velocidade por trecho). */
   fonte: 'nubus' | 'estimativa';
   /** Próxima viagem da tabela ("20:55"), quando não há ônibus com GPS vindo. */
   tabela: string | null;

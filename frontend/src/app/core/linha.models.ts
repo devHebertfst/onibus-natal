@@ -14,6 +14,16 @@ export interface Itinerario {
   /** [[lat, lng], ...] no sentido de circulação. */
   tracado: [number, number][];
   paradas: Parada[];
+  /** Velocidade por trecho medida pelos ônibus da linha (ausente em backend antigo). */
+  trechos?: Trechos;
+}
+
+/** Espelho de `TrechosDto`: o trecho `k` vai de `k·tamanhoM` a `(k+1)·tamanhoM` metros. */
+export interface Trechos {
+  tamanhoM: number;
+  /** km/h por trecho, tempo parado incluído; null onde não há medida recente. */
+  kmh: (number | null)[];
+  mediaKmh: number | null;
 }
 
 export interface Onibus {

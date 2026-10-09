@@ -17,12 +17,6 @@ const TAU_CORRECAO_S = 2.5;
 const SALTO_MAX_M = 400;
 /** Duração da transição visual quando o ônibus "pula" (ms). */
 const TRANSICAO_MS = 900;
-/**
- * Velocidade média de um ônibus urbano contando paradas, semáforos e
- * trânsito. Usada quando a velocidade real ainda é desconhecida e na
- * previsão de chegada.
- */
-export const VELOCIDADE_COMERCIAL_KMH = 18;
 /** Perto das pontas do traçado (terminais) não estima: o ônibus costuma esperar ali. */
 const MARGEM_TERMINAL_M = 250;
 
@@ -82,7 +76,8 @@ export class OnibusAnimado {
   /**
    * Nova leitura vinda do backend.
    * @param velocidadeKmh null = desconhecida: se o sentido já for conhecido,
-   *   anda na velocidade comercial até a real chegar (a correção é suave).
+   *   anda na velocidade que os outros ônibus da linha fazem naquele trecho
+   *   até a real chegar (a correção é suave).
    * @param tFix instante (relógio do navegador) em que a posição foi observada.
    * @param candidatas rotas em que o ônibus pode estar (itinerários da linha).
    */
@@ -191,13 +186,16 @@ export class OnibusAnimado {
     return Math.min(rota.comprimento, this.sFix + this.velocidadeEfetiva() * dt);
   }
 
-  /** Velocidade usada na extrapolação (m/s): a real ou, se desconhecida, a estimada. */
+  /**
+   * Velocidade usada na extrapolação (m/s): a do ônibus ou, se desconhecida,
+   * a que os ônibus da linha estão fazendo neste trecho.
+   */
   private velocidadeEfetiva(): number {
     if (this.velocidadeConhecida) return this.velocidadeMs;
     const rota = this.rota;
     if (!rota || this.sFix < MARGEM_TERMINAL_M || rota.comprimento - this.sFix < MARGEM_TERMINAL_M)
       return 0;
-    return VELOCIDADE_COMERCIAL_KMH / 3.6;
+    return rota.perfil.velocidadeEm(this.sFix);
   }
 
   private iniciarTransicao(agora: number): void {

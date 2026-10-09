@@ -6,6 +6,8 @@
  * Com isso, a posição de um ônibus vira um único número: `s`, a distância em
  * metros desde o início do traçado. Andar com o ônibus é só somar a `s`.
  */
+import { PerfilVelocidade } from './perfil-velocidade';
+
 const METROS_POR_GRAU = 111_195;
 
 export interface Projecao {
@@ -17,6 +19,8 @@ export interface Projecao {
 
 export class Rota {
   readonly comprimento: number;
+  /** Velocidade medida pelos ônibus em cada trecho; renovada a cada atualização. */
+  perfil = new PerfilVelocidade();
   private readonly x: Float64Array;
   private readonly y: Float64Array;
   /** Distância acumulada até cada vértice. */

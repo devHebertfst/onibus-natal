@@ -12,7 +12,7 @@ export interface SentidoNaPlaca {
   previsoes: Previsao[];
   /** Por que o ônibus seguido mudou ("o ônibus X já passou"), por alguns segundos. */
   aviso: string | null;
-  /** De onde vem o tempo: previsão da Nubus ou estimativa própria (~18 km/h). */
+  /** De onde vem o tempo: previsão da Nubus ou estimativa própria (velocidade por trecho). */
   fonte: 'nubus' | 'estimativa';
   /** Próxima viagem da tabela ("20:55"), quando nenhum ônibus com GPS vem. */
   tabela: string | null;

@@ -102,7 +102,8 @@ acompanhada após 30 min sem acessos e sem conexões SSE.
       "codigo": "101",
       "descricao": "33 - ...",
       "tracado": [[-5.84, -35.21], ...],   // [lat, lng] no sentido de circulação
-      "paradas": [{ "codigo": "...", "descricao": "...", "ordem": 1, "lat": -5.8, "lng": -35.2 }]
+      "paradas": [{ "codigo": "...", "descricao": "...", "ordem": 1, "lat": -5.8, "lng": -35.2 }],
+      "trechos": { "tamanhoM": 300, "kmh": [22.5, null, 9.1, ...], "mediaKmh": 17.8 }
     }
   ],
   "onibus": [
@@ -189,7 +190,8 @@ posição do ônibus vira um número `s` (metros desde o início do traçado).
   (ida e volta na mesma rua), o ônibus fica parado na posição real até a
   próxima leitura.
 - Velocidade desconhecida (`null`): se o sentido já for conhecido, o ônibus
-  anda a 18 km/h (média urbana) até chegar a velocidade real, com a mesma
+  anda na velocidade que os ônibus da linha fazem naquele trecho (veja
+  "Velocidade por trecho" abaixo) até chegar a velocidade real, com a mesma
   correção suave. Perto das pontas do traçado (250 m, terminais) não estima.
   A lista mostra "calculando…" em vez de "parado".
 - O horário da posição (`posicaoDesde`) é a hora em que o GPS a mediu,
@@ -209,8 +211,57 @@ posição deixava o ônibus desenhado atrás do real. A previsão de chegada
   parada (`AMOSTRA_GPS=false` desliga). Isso não renova o acesso da linha.
 "Parado há mais de 60s" continua contado de quando o backend viu a posição.
 
+**Velocidade por trecho (os ônibus como sensores).** Cada itinerário é
+dividido em trechos de 300 m, e o backend mede a velocidade de cada um com
+os próprios ônibus da linha: duas posições consecutivas de um ônibus dizem
+"andou de s0 a s1 em Δt", e o tempo é repartido entre os trechos cobertos.
+- Os trechos andam uma posição atrás da atual: quando a posição nova chega,
+  a hora real do GPS da anterior quase sempre já chegou (veja "Hora do GPS").
+  Com a hora estimada, cada medida errava ±20%; com a real, bate com a
+  velocidade do ônibus.
+- Δt conta o tempo parado entre as duas posições, então a velocidade já
+  inclui pontos, semáforos e engarrafamento: somar o tempo de cada trecho dá
+  o tempo de viagem. Por isso a velocidade do trecho é metros ÷ segundos
+  somados, não a média das velocidades.
+- Observações perdem metade do peso a cada 10 min (o trânsito muda) e um
+  trecho sem ônibus há 30 min volta a ser desconhecido. Um trecho só vale
+  depois de percorrido ao menos pela metade.
+- Descartadas: posição a mais de 60 m do traçado, mais de 5 min ou 2 km
+  entre duas posições, acima de 80 km/h, e ônibus "andando para trás" (é o
+  sentido contrário, projetado no traçado errado).
+- Vai em `itinerarios[].trechos` (km/h por trecho, `null` sem medida, e a
+  média do itinerário). O frontend usa na previsão de chegada (tempo trecho
+  a trecho até a parada) e no dead reckoning de ônibus de velocidade
+  desconhecida. Sem medida, vale o histórico (abaixo); sem ele, a média do
+  itinerário; sem média, 18 km/h. As contas limitam a velocidade a 5–60 km/h.
+
+**Histórico por horário (Postgres/Neon).** Com `DATABASE_URL`, o backend
+guarda quanto os ônibus levam em cada trecho por tipo de dia (útil, sábado,
+domingo) e faixa de 30 min, no horário de Natal. Assim, uma linha recém-
+aberta (ou o servidor recém-acordado) já começa com o ritmo típico daquele
+horário em vez de 18 km/h, e as medidas ao vivo vão tomando o lugar.
+- Grava em lote a cada 5 min (`HISTORICO_GRAVAR_MS`) e ao desligar; lê o
+  histórico de cada itinerário uma vez (a 1ª atualização da linha espera
+  até 2 s por ele) e relê a cada 6 h. A faixa atual vale inteira e as
+  vizinhas com meio peso.
+- Medidas antigas perdem metade do peso a cada 14 dias. Se o traçado do
+  itinerário mudar, o histórico dele recomeça.
+- Uma tabela só (`velocidade_trecho`), criada sozinha na 1ª conexão.
+- Sem `DATABASE_URL`, ou com o banco fora do ar, tudo funciona só com as
+  medidas ao vivo; `/api/diagnostico` mostra em `historico` se está gravando
+  e a última falha.
+
+Para ligar no Neon: crie um projeto em neon.tech (região perto do backend),
+copie a *connection string* (`postgresql://…?sslmode=require`) e coloque em
+`DATABASE_URL` nas variáveis de ambiente do Render. No plano free o Render
+dorme após ~15 min sem acessos, e dormindo ninguém coleta posições; um ping
+externo (UptimeRobot, cron-job.org) em `/api/linhas` a cada 10 min o mantém
+acordado.
+
 **Medir a precisão.** `GET /api/diagnostico` mostra o atraso medido do GPS
-(mediana, p90, quanto está sendo descontado). No app, `?debug=1` abre um
+(mediana, p90, quanto está sendo descontado) e, por itinerário, quanto do
+traçado já tem velocidade medida (`trechos`: cobertura em % e média) e o
+estado do histórico no banco (`historico`). No app, `?debug=1` abre um
 painel com o erro do desenho a cada posição nova (metros, segundos e quanto
 fica atrás) e a diferença entre a nossa estimativa e a da Nubus.
 
@@ -250,7 +301,8 @@ uma gaveta arrastável com três alturas.
   44 px). Paradas de ida e volta no mesmo lugar viram um ponto só.
 - **Placa de chegada:** uma linha por sentido, seta no rumo real do traçado,
   tempo até o próximo ônibus, quantas paradas faltam e os seguintes. A
-  estimativa (distância pelo traçado a 18 km/h) é dita como estimativa.
+  estimativa (pelo ritmo recente dos ônibus em cada trecho, ou 18 km/h
+  enquanto não há medida) é dita como estimativa.
 - **Meu ponto:** salvo por linha no navegador; ao reabrir a linha a placa
   aparece direto. Link direto: `?linha=33&parada=<código>`.
 - Estado da conexão (ao vivo, reconectando, sem internet, dados atrasados) e

@@ -52,6 +52,14 @@ describe('LinhasService', () => {
     expect(linha.onibus.map((o) => o.id)).toEqual(['A1', 'B2']);
     expect(linha.onibus[1].itinerarios).toEqual(['101', '102']);
     expect(service.acompanhadas()).toEqual(['33']);
+    // Velocidade por trecho: ainda nenhum ônibus andou, nada medido.
+    expect(linha.itinerarios[0].trechos).toMatchObject({
+      tamanhoM: 300,
+      mediaKmh: null,
+    });
+    expect(linha.itinerarios[0].trechos?.kmh.every((k) => k === null)).toBe(
+      true,
+    );
   });
 
   it('serve do cache e consulta a API uma vez para vários clientes', async () => {

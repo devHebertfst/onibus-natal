@@ -75,4 +75,48 @@ export const config = {
     /** Esquece veículos que não aparecem há esse tempo. */
     esquecerAposMs: 10 * 60_000,
   },
+
+  /**
+   * Velocidade por trecho do traçado, aprendida com os próprios ônibus da
+   * linha: cada par de posições consecutivas de um ônibus diz quanto tempo
+   * ele levou para percorrer aquele pedaço, paradas e semáforos incluídos.
+   */
+  trechos: {
+    /** Tamanho de cada trecho do traçado. */
+    tamanhoM: 300,
+    /** Posição mais longe que isso do traçado não conta (desvio, garagem). */
+    distanciaMaxRotaM: 60,
+    /** Entre duas posições mais espaçadas que isso, não dá para saber o que houve. */
+    intervaloMaxMs: 5 * 60_000,
+    /** Avanço maior que isso entre duas posições é salto, não percurso. */
+    avancoMaxM: 2_000,
+    /** Acima disso é erro de GPS ou de projeção. */
+    velocidadeMaxKmh: 80,
+    /** A cada meia-vida, uma observação pesa metade (o trânsito muda). */
+    meiaVidaMs: 10 * 60_000,
+    /** Trecho sem observação há mais que isso volta a ser desconhecido. */
+    janelaMs: 30 * 60_000,
+    /** Fração do trecho já percorrida (com o peso) para a velocidade valer. */
+    coberturaMin: 0.5,
+  },
+
+  /**
+   * Histórico da velocidade por trecho, por tipo de dia e faixa de horário,
+   * num Postgres (Neon). Sem `DATABASE_URL`, fica tudo só em memória.
+   */
+  historico: {
+    databaseUrl: process.env.DATABASE_URL || undefined,
+    /** O que foi medido vai para o banco em lote, a cada intervalo. */
+    gravarMs: num(process.env.HISTORICO_GRAVAR_MS, 5 * 60_000),
+    /** O histórico de um itinerário é relido do banco depois disso. */
+    recarregarMs: 6 * 60 * 60_000,
+    /** Depois de uma falha no banco, espera isso para tentar ler de novo. */
+    esperaAposFalhaMs: 5 * 60_000,
+    /** Tamanho de cada faixa de horário (minutos). */
+    faixaMin: 30,
+    /** A cada meia-vida, o que foi medido pesa metade (a cidade muda). */
+    meiaVidaMs: 14 * 24 * 60 * 60_000,
+    /** Fuso de Natal (UTC−3, sem horário de verão). */
+    fusoMin: -180,
+  },
 };
