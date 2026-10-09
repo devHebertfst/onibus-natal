@@ -235,7 +235,7 @@
     small {
       font-size: 13px;
       font-weight: 600;
-      color: var(--placa);
+      color: var(--placa-tinta);
       text-decoration: underline;
       text-underline-offset: 2px;
     }
@@ -321,7 +321,7 @@
     }
 
     .chegando {
-      color: var(--placa);
+      color: var(--placa-tinta);
     }
 
     small {
@@ -357,7 +357,7 @@
   flex: none;
   border-radius: var(--raio);
   background: var(--chao-2);
-  color: var(--placa);
+  color: var(--placa-tinta);
 }
 .fechar-painel {
   display: grid;

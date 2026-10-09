@@ -2,22 +2,23 @@
 name: Ônibus Natal
 description: Os ônibus de Natal no mapa em tempo real, com a chegada no seu ponto lida numa placa de indicação.
 colors:
-  placa: "#00653a"
-  placa-escura: "#004d2c"
+  placa: "#c2410c"
+  placa-escura: "#9a3412"
   placa-texto: "#ffffff"
-  placa-texto-2: "#e2efe7"
+  placa-texto-2: "#fde3d3"
+  placa-tinta: "#b23b0b"
   adv: "#ffc20e"
   adv-texto: "#1b1f22"
   reg: "#c4161c"
   reg-fundo: "#fdecec"
-  chao: "#ffffff"
-  chao-2: "#eef1f2"
-  chao-3: "#e1e6e8"
-  linha: "#cdd4d8"
-  linha-forte: "#7d878d"
-  texto: "#1b1f22"
-  texto-2: "#3a4146"
-  texto-3: "#535c62"
+  chao: "#fffaf3"
+  chao-2: "#f5ede3"
+  chao-3: "#ebe1d4"
+  linha: "#ddd2c4"
+  linha-forte: "#857b70"
+  texto: "#2b2f33"
+  texto-2: "#464b50"
+  texto-3: "#5c6166"
   foco: "#1b1f22"
   selecao: "#ffc20e"
   chao-noite: "#111416"
@@ -28,7 +29,8 @@ colors:
   texto-noite: "#f1f3f4"
   texto-2-noite: "#cfd5d8"
   texto-3-noite: "#a5aeb3"
-  placa-escura-noite: "#00512f"
+  placa-escura-noite: "#d4561f"
+  placa-tinta-noite: "#ff9e6e"
   reg-noite: "#ff6b6b"
   reg-fundo-noite: "#3a1a1b"
   foco-noite: "#ffffff"
@@ -203,28 +205,29 @@ components:
 
 **Creative North Star: "A Placa de Indicação"**
 
-O Ônibus Natal fala a língua das placas que o passageiro já lê na rua: a sinalização viária brasileira do CONTRAN. A informação principal (quanto falta para o ônibus chegar no seu ponto) mora numa placa de indicação de verdade: fundo verde, filete branco interno, seta apontando o rumo, destino em letra de rodovia e o tempo em algarismos grandes. Tudo o que não é placa é chão: branco e asfalto de dia, asfalto escuro à noite. O mapa ocupa a tela inteira e as placas ficam por cima dele, como sinalização sobre a cidade.
+O Ônibus Natal fala a língua das placas que o passageiro já lê na rua: a sinalização viária brasileira do CONTRAN. A informação principal (quanto falta para o ônibus chegar no seu ponto) mora numa placa de indicação de verdade: fundo laranja, filete branco interno, seta apontando o rumo, destino em letra de rodovia e o tempo em algarismos grandes. Tudo o que não é placa é chão: branco e asfalto de dia, asfalto escuro à noite. O mapa ocupa a tela inteira e as placas ficam por cima dele, como sinalização sobre a cidade.
 
-Cada cor tem o papel que tem na rua e só esse. Verde de indicação é informação e caminho (o topo, a placa do ponto, a ação principal, os números das linhas). Amarelo de advertência, sempre com preto, avisa que o dado está atrasado, que a conexão está voltando ou que a localização falhou. Vermelho de regulamentação marca erro, como o anel e a borda de uma placa de proibição. As cores dos sentidos (azul de serviço, laranja de obras e mais quatro) pintam o traçado no mapa e voltam como quadradinhos nas listas e na placa, para o passageiro ligar o que lê ao que vê. À noite o chão escurece e as placas continuam acesas no mesmo verde, como placas refletivas sob o farol.
+Cada cor tem o papel que tem na rua e só esse. Laranja de indicação é informação e caminho (o topo, a placa do ponto, a ação principal, os números das linhas). Amarelo de advertência, sempre com preto, avisa que o dado está atrasado, que a conexão está voltando ou que a localização falhou. Vermelho de regulamentação marca erro, como o anel e a borda de uma placa de proibição. As cores dos sentidos (azul de serviço, laranja de obras e mais quatro) pintam o traçado no mapa e voltam como quadradinhos nas listas e na placa, para o passageiro ligar o que lê ao que vê. À noite o chão escurece e as placas continuam acesas no mesmo laranja, como placas refletivas sob o farol.
 
 A densidade é de rua: letras pesadas, alvos de toque de 44 a 56 px, contraste para sol forte e uma mão só. O sistema recusa os dois padrões da categoria: o painel de telemetria escuro com neon e brilhos, e a pilha de cartões brancos genéricos com um azul de destaque.
 
 **Key Characteristics:**
-- Placa de indicação verde (#00653a) com filete branco inset como peça central; o verde não muda entre dia e noite.
+- Placa de indicação laranja (#c2410c) com filete branco inset como peça central; o laranja não muda entre dia e noite.
 - Overpass Variable em pesos altos (700–800), sempre com algarismos tabulares nos números que mudam.
 - Chão neutro (branco/asfalto) e mapa-base cinza sem cor própria; a cor vem das placas e dos sentidos.
-- Forma indica categoria: retângulo verde é indicação, losango amarelo é advertência, anel vermelho é regulamentação.
+- Forma indica categoria: retângulo laranja é indicação, losango amarelo é advertência, anel vermelho é regulamentação.
 - Listas separadas por régua fina, não por cartões; profundidade só para o que flutua sobre o mapa.
 - Movimento curto e com uma só curva (cubic-bezier(0.22, 1, 0.36, 1)); o único movimento da placa é o minuto novo subindo.
 
 ## Colors
 
-Paleta de sinalização: um verde institucional dominante, dois sinais de alerta com papel fixo, chão neutro e seis cores de sentido para o mapa.
+Paleta de sinalização: um laranja institucional dominante, dois sinais de alerta com papel fixo, chão neutro e seis cores de sentido para o mapa.
 
 ### Primary
-- **Verde Indicação** (placa): casca do produto. Topo, placa de chegada, botão principal, controle de mapa ativo, números das linhas, parada ativa no mapa, cor da barra do sistema (`theme-color`) e do ícone. Texto sobre ele é sempre branco (placa-texto), com contraste de cerca de 7:1.
-- **Verde Indicação Fundo** (placa-escura): hover do botão principal e contorno do escudo de rodovia no topo. À noite fica um pouco mais claro (placa-escura-noite).
-- **Branco de Placa** (placa-texto) e **Branco Gelo de Placa** (placa-texto-2): letra e filete sobre o verde; o segundo, para detalhes secundários dentro da placa e para a idade do dado no topo.
+- **Laranja Indicação** (placa): casca do produto. Topo, placa de chegada, botão principal, controle de mapa ativo, números das linhas, parada ativa no mapa, cor da barra do sistema (`theme-color`) e do ícone. Texto sobre ele é sempre branco (placa-texto), com contraste de cerca de 7:1.
+- **Laranja Indicação Fundo** (placa-escura): hover do botão principal e contorno do escudo de rodovia no topo. À noite fica um pouco mais claro (placa-escura-noite).
+- **Tinta Laranja** (placa-tinta): o laranja da marca como cor de texto sobre o chão (links, "ao vivo", "chegando" nas listas), um tom mais escuro para ler bem sobre a areia. À noite vira laranja claro (placa-tinta-noite).
+- **Branco de Placa** (placa-texto) e **Branco Gelo de Placa** (placa-texto-2): letra e filete sobre o laranja; o segundo, para detalhes secundários dentro da placa e para a idade do dado no topo.
 
 ### Secondary
 - **Amarelo Advertência** (adv) com **Preto de Placa** (adv-texto): estado "atrasado"/"reconectando" no topo, aviso de localização, nota de dado velho do servidor, favorita ativa e seleção de texto (selecao). Nunca aparece sem o preto por cima.
@@ -247,7 +250,7 @@ Paleta de sinalização: um verde institucional dominante, dois sinais de alerta
 O mapa-base é emprestado: tiles Esri Light Gray (dia) e Dark Gray (noite), sem chave de API. Ele é cinza e neutro o suficiente para não competir com as placas, mas não foi desenhado para este mundo.
 
 ### Named Rules
-**A Regra da Placa Acesa.** O verde de indicação é o mesmo nos dois temas. À noite muda o chão, nunca a placa.
+**A Regra da Placa Acesa.** O laranja de indicação é o mesmo nos dois temas. À noite muda o chão, nunca a placa.
 
 **A Regra do Amarelo com Preto.** Amarelo de advertência sempre leva texto ou ícone preto (adv-texto) por cima, nos dois temas.
 
@@ -281,7 +284,7 @@ O mapa-base é emprestado: tiles Esri Light Gray (dia) e Dark Gray (noite), sem 
 Mapa em tela cheia (`position: fixed; inset: 0`), com topo, controles e painel flutuando por cima. A página não rola: `overflow: clip` no `html`, `body` e no componente raiz; só o conteúdo do painel rola.
 
 - **Desktop (acima de 760px):** coluna esquerda de 400px a 12px das bordas (respeitando `safe-area-inset`). Marca, resumo da linha acompanhada e painel independente abaixo. Controles do mapa empilhados no canto superior direito, com 8px entre eles. Linhas contém busca e catálogo; Paradas contém a placa e a escolha do ponto; Ajustes contém a legenda e os atalhos.
-- **Celular (até 760px):** topo verde de 52px colado no alto, de ponta a ponta, somando `safe-area-inset-top`. O painel vira gaveta inferior com três alturas (baixa ≈40dvh, média 64dvh, alta quase a tela toda); ela tem sempre a altura máxima e desliza com `transform`. Os controles do mapa, a atribuição e o toast sobem junto com a gaveta (variável `--altura-gaveta`), ficando ao alcance do polegar logo acima dela. O zoom vira pinça (botões de zoom escondidos).
+- **Celular (até 760px):** topo laranja de 52px colado no alto, de ponta a ponta, somando `safe-area-inset-top`. O painel vira gaveta inferior com três alturas (baixa ≈40dvh, média 64dvh, alta quase a tela toda); ela tem sempre a altura máxima e desliza com `transform`. Os controles do mapa, a atribuição e o toast sobem junto com a gaveta (variável `--altura-gaveta`), ficando ao alcance do polegar logo acima dela. O zoom vira pinça (botões de zoom escondidos).
 - **Ritmo:** passos de 4, 6, 8, 10, 12, 14 e 16px. Margem de 12px até a borda da tela; 14px entre blocos do painel e no padding da gaveta; 16px de padding lateral no topo e no painel desktop.
 - **Alvos de toque:** 44px (controles do mapa, limpar campo, estrela, botões de zoom), 48px (busca, botões, chips, filtro, expandir), 56px (itens das listas de paradas e frota), 78px (linhas do catálogo).
 
@@ -304,11 +307,11 @@ Cantos de placa: 8px (`--raio`) em placas, botões, campos, avisos, controles e 
 
 Silhuetas com significado, tiradas das placas:
 - **Filete branco inset:** borda de 2px a 4px da borda externa, com raio de 5px (`raio - 3px`). Na placa de chegada, na parada ativa do mapa e no ícone do app.
-- **Escudo de rodovia:** escudo branco com contorno verde-escuro e o número da linha em preto, no topo.
+- **Escudo de rodovia:** escudo branco com contorno laranja-escuro e o número da linha em preto, no topo.
 - **Losango:** a luz de estado vira losango de 8px girado 45° quando o estado é de advertência; círculo de 9px nos outros.
 - **Anel:** círculo de 12px com borda vermelha de 3px antes da mensagem de erro.
 - **Quadradinho de sentido:** 10–14px com cantos de 2–3px, na cor do sentido; na placa ganha filete branco de 2px.
-- **Ponto de parada:** círculo de 14px com borda de asfalto de 3px sobre o chão; ativo, vira mini placa verde de 26px com filete branco.
+- **Ponto de parada:** círculo de 14px com borda de asfalto de 3px sobre o chão; ativo, vira mini placa laranja de 26px com filete branco.
 - **Marcador de ônibus:** quadrado de 28px, cantos de 7px, borda branca de 2px, na cor do sentido, com seta branca no rumo (ou ponto branco enquanto o rumo é desconhecido).
 
 Bordas de controles são grossas (2px) e retas; ícones são traços de 2px com pontas redondas, desenhados em SVG inline a 20px.
@@ -317,31 +320,31 @@ Bordas de controles são grossas (2px) e retas; ícones são traços de 2px com 
 
 ### Placa de chegada (assinatura)
 A peça que define o produto: uma placa de indicação com o ponto do passageiro e, para cada sentido, quanto falta.
-- **Forma:** fundo verde, cantos de 8px, filete branco interno, Sombra de Placa, padding 14px 16px 10px.
-- **Cabeçalho:** nome da parada a 15px/700, com o pino branco quando é "meu ponto". À direita, o botão "Trocar" (44px, filete branco de 2px sobre o verde, cantos de 4px), que volta à escolha do ponto.
+- **Forma:** fundo laranja, cantos de 8px, filete branco interno, Sombra de Placa, padding 14px 16px 10px.
+- **Cabeçalho:** nome da parada a 15px/700, com o pino branco quando é "meu ponto". À direita, o botão "Trocar" (44px, filete branco de 2px sobre o laranja, cantos de 4px), que volta à escolha do ponto.
 - **Linhas:** grade de três colunas (seta de 34px, destino, tempo), separadas por régua branca de 2px a 55% de opacidade. A seta gira para o rumo real do sentido (transição de 0,4s); sem rumo, fica a 60%. Sob a seta, a letra do rumo (N, NE, L, SE, S, SO, O, NO) a 13px/800, como numa rosa dos ventos; o leitor de tela ouve "indo para o sudeste".
 - **Destino:** quadradinho do sentido com filete branco + nome a 20px/800; abaixo, detalhes a 14px em placa-texto-2, um por linha: "a 3 paradas daqui (1,2 km)", "ônibus nº CDN70025" (o ônibus que a placa está seguindo) e "depois: 8 e 18 min".
 - **Ônibus seguido:** a placa segue um ônibus por sentido. Se ele some da conta (passou do ponto, mudou de sentido, perdeu o GPS), o número muda e uma plaquinha amarela com preto diz por quê ("O ônibus nº X já passou por aqui.") durante 45 s; nunca troca o número em silêncio.
-- **Tempo:** minutos a 40px/800 + "min" a 16px/700. Quando o ônibus está chegando, vira uma plaquinha invertida (branca, letra verde, cantos de 4px) com "chegando". Sem ônibus vindo, um travessão a 28px e 70%.
+- **Tempo:** minutos a 40px/800 + "min" a 16px/700. Quando o ônibus está chegando, vira uma plaquinha invertida (branca, letra laranja, cantos de 4px) com "chegando". Sem ônibus vindo, um travessão a 28px e 70%.
 - **Movimento:** o minuto novo sobe no lugar do antigo (animação `troca`, 0,45s, deslocamento de 40% com recorte), como letreiro. É o único movimento da placa.
 
 ### Topo
-- **Estilo:** faixa verde (56px desktop / 52px celular) com escudo de rodovia, marca "Ônibus Natal" a 20px/800 e o estado da conexão à direita.
+- **Estilo:** faixa laranja (56px desktop / 52px celular) com escudo de rodovia, marca "Ônibus Natal" a 20px/800 e o estado da conexão à direita.
 - **Estado:** "Ao vivo" com luz redonda e idade do dado ("há 1 s") em placa-texto-2; em advertência, o estado vira plaquinha amarela com preto e a luz vira losango; neutro, a luz cai para 60%.
 
 ### Campo de linha
 - **Estilo:** caixa de 48px com borda de 1px, cantos de 8px, ícone de busca e texto a 16px/500. O rótulo acessível fica oculto visualmente; limpar a busca não encerra a linha acompanhada.
-- **Lista de linhas:** número em selo verde, descrição real da Nubus, ação para acompanhar e estrela independente de 44px. Apenas a linha acompanhada mostra sua quantidade de ônibus; as demais não inventam disponibilidade. Escolher a linha fecha o painel após receber os dados.
-- **Foco:** anel de 3px em `--foco` com 2px de afastamento na caixa inteira (`:focus-within`). Cursor de digitação verde de dia, amarelo à noite.
+- **Lista de linhas:** número em selo laranja, descrição real da Nubus, ação para acompanhar e estrela independente de 44px. Apenas a linha acompanhada mostra sua quantidade de ônibus; as demais não inventam disponibilidade. Escolher a linha fecha o painel após receber os dados.
+- **Foco:** anel de 3px em `--foco` com 2px de afastamento na caixa inteira (`:focus-within`). Cursor de digitação laranja de dia, amarelo à noite.
 - **Erro:** mensagem ligada por `aria-describedby` e `aria-invalid`; o aviso de erro aparece logo abaixo.
 
 ### Buttons
 - **Forma:** cantos de 8px, borda de 2px, altura mínima de 48px, padding 0 14px, 15px/700, ícone de 20px com 8px de distância.
 - **Padrão:** chão com borda em asfalto. Hover (só com mouse): chão-2.
-- **Principal:** verde com letra branca, largura total, 16px ("Paradas perto de mim"). Hover: verde-escuro. Desabilitado: 75% e cursor de progresso.
+- **Principal:** laranja com letra branca, largura total, 16px ("Paradas perto de mim"). Hover: laranja-escuro. Desabilitado: 75% e cursor de progresso.
 - **Secundário:** borda em Contorno Forte ("Trocar ponto", "Esquecer este ponto").
 - **Estrela (favorita):** quadrado de 52px com borda de Contorno Forte; ativa, vira amarela com estrela preta preenchida.
-- **Controles do mapa:** quadrados de 44px no chão com Sombra; o de tema noite, quando ativo, fica verde.
+- **Controles do mapa:** quadrados de 44px no chão com Sombra; o de tema noite, quando ativo, fica laranja.
 - **Expandir ("Todas as paradas"):** faixa de 48px em chão-2, sem borda, com chevron que gira 180° ao abrir.
 
 ### Chips
@@ -357,20 +360,20 @@ A peça que define o produto: uma placa de indicação com o ponto do passageiro
 - **Erro:** placa de regulamentação: borda vermelha de 2px, fundo reg-fundo, anel vermelho à frente, texto em asfalto, 15px/1.4.
 - **Advertência:** amarelo com preto, cantos de 8px (aviso) ou 4px (nota sob a placa).
 - **Nota de estimativa:** 14px em texto-3, logo abaixo da placa, começando pela idade do dado em texto-2/700 ("Posições de há 12 s. Tempo estimado pela distância até o ponto, a ~18 km/h").
-- **Legenda ("Como ler o mapa"):** `details` fechado por padrão, com chevron como o botão Expandir; explica as cores de sentido, o cinza sem rota, a seta do marcador, o rótulo verde, a letra do rumo e "medindo…". Os atalhos de teclado moram aqui (só com `hover: hover` e `pointer: fine`); nada de significado fica só em `title`.
+- **Legenda ("Como ler o mapa"):** `details` fechado por padrão, com chevron como o botão Expandir; explica as cores de sentido, o cinza sem rota, a seta do marcador, o rótulo laranja, a letra do rumo e "medindo…". Os atalhos de teclado moram aqui (só com `hover: hover` e `pointer: fine`); nada de significado fica só em `title`.
 - **Toast:** invertido (asfalto com letra no tom do chão), 15px/600, centralizado; no celular sobe acima da gaveta.
 
 ### Gaveta (celular)
 - **Painéis independentes do mapa:** cabeçalho com ícone, título, descrição e botão de fechar em cada menu. O X, Escape e um segundo toque no menu ativo fecham o painel. Trocar de área preserva a rolagem, os campos do trajeto, seus resultados e o enquadramento do mapa.
 - **Contexto da viagem:** resumo da linha sempre no topo; com o painel fechado, sentidos e informações do ônibus selecionado ficam acima da navegação, mostrando apenas dados disponíveis.
-- **Navegação principal:** barra flutuante na parte inferior, com Linhas, Paradas, Trajetos, Favoritas e Ajustes. Ícones de 22px, rótulos visíveis, botões de 58px e fundo verde na área ativa. Favoritas mostra a quantidade salva. A gaveta termina acima da barra, respeitando a área segura do aparelho.
+- **Navegação principal:** barra flutuante na parte inferior, com Linhas, Paradas, Trajetos, Favoritas e Ajustes. Ícones de 22px, rótulos visíveis, botões de 58px e fundo laranja na área ativa. Favoritas mostra a quantidade salva. A gaveta termina acima da barra, respeitando a área segura do aparelho.
 - **Alça:** área de 44px, traço de 44×5px em Contorno Forte; arrasta por ponteiro e alterna as alturas com clique, Enter ou Espaço (o clique que segue um toque é ignorado).
 - **Frota:** recolhida sob o título "Ônibus que vêm pra cá (N)" quando há placa, aberta sem ela; ordenada pelo tempo até o ponto, com "chega em X min" ao lado do número.
 - **Movimento:** `transform` em 0,32s com cubic-bezier(0.22, 1, 0.36, 1); os controles do mapa acompanham na mesma curva.
 
 ### Marcadores do mapa
-- **Ônibus:** quadrado na cor do sentido com seta branca no rumo. Sem rótulo, para não se atropelarem; o ônibus seguido pela placa ganha plaquinha verde com o tempo ("6 min", "chegando") e o selecionado, plaquinha invertida com número e velocidade. Selecionado: cresce 1,2× e ganha anel de asfalto de 3px. A cor vem da mesma regra da lista: sentido inferido ou, sem ele, o único itinerário da API.
-- **Parada:** alvo de 44px com desenho pequeno no centro; abaixo do zoom 15 o desenho vira pontinho de 8px, para não cobrir o traçado. Ativa, mini placa verde com filete.
+- **Ônibus:** quadrado na cor do sentido com seta branca no rumo. Sem rótulo, para não se atropelarem; o ônibus seguido pela placa ganha plaquinha laranja com o tempo ("6 min", "chegando") e o selecionado, plaquinha invertida com número e velocidade. Selecionado: cresce 1,2× e ganha anel de asfalto de 3px. A cor vem da mesma regra da lista: sentido inferido ou, sem ele, o único itinerário da API.
+- **Parada:** alvo de 44px com desenho pequeno no centro; abaixo do zoom 15 o desenho vira pontinho de 8px, para não cobrir o traçado. Ativa, mini placa laranja com filete.
 - **Passageiro:** ponto de 18px em asfalto com borda branca de 3px.
 - **Traçado:** linha cheia na cor do sentido sobre contorno 4px mais largo na cor do chão, como mapa de rota impresso. O primeiro sentido tem 8px e o segundo 3,5px por dentro dele (os demais, 2,5px): no tronco comum de ida e volta aparecem as duas cores.
 
@@ -382,8 +385,8 @@ A peça que define o produto: uma placa de indicação com o ponto do passageiro
 ## Do's and Don'ts
 
 ### Do:
-- **Do** colocar a resposta principal de cada tela numa placa de indicação: verde (#00653a), filete branco inset de 2px a 4px da borda, cantos de 8px.
-- **Do** manter o verde das placas e do topo idêntico nos dois temas; à noite, troque só os tokens de chão, linha e texto.
+- **Do** colocar a resposta principal de cada tela numa placa de indicação: laranja (#c2410c), filete branco inset de 2px a 4px da borda, cantos de 8px.
+- **Do** manter o laranja das placas e do topo idêntico nos dois temas; à noite, troque só os tokens de chão, linha e texto.
 - **Do** usar amarelo de advertência só com preto por cima, e vermelho de regulamentação só como borda/anel sobre fundo pálido.
 - **Do** escrever todo número que muda com algarismos tabulares e o número principal em 800.
 - **Do** repetir a cor do sentido do traçado em todo lugar que se refere àquele sentido, usando a paleta do tema atual.
@@ -395,6 +398,6 @@ A peça que define o produto: uma placa de indicação com o ponto do passageiro
 - **Don't** usar brilho, neon, halo colorido ou glassmorphism; o sistema recusa o visual de painel de telemetria escuro.
 - **Don't** empilhar cartões brancos com sombra para listas, nem usar um azul genérico como cor de destaque da interface.
 - **Don't** usar o amarelo ou o vermelho como decoração ou destaque sem o papel de advertência, favorita, seleção de texto ou erro.
-- **Don't** escurecer ou dessaturar o verde das placas no tema noite.
+- **Don't** escurecer ou dessaturar o laranja das placas no tema noite.
 - **Don't** introduzir uma segunda família tipográfica nem caixa-alta em destinos e títulos.
 - **Don't** pôr sombra em elementos dentro do painel; profundidade é só para o que flutua sobre o mapa e para a placa.

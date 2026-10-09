@@ -1,6 +1,6 @@
 /*
- * Mundo visual: sinalização viária brasileira (CONTRAN).
- * Verde de indicação na casca e na placa do ponto; branco e asfalto no chão;
+ * Mundo visual: Natal, a Cidade do Sol, com a lógica das placas de rua.
+ * Laranja-sol na casca e na placa do ponto; areia e grafite no chão;
  * amarelo de advertência para dados atrasados; vermelho de regulamentação
  * para erros. À noite o chão vira asfalto e as placas continuam acesas,
  * como placas refletivas.
@@ -8,18 +8,20 @@
 :root,
 [data-tema='dia'] {
   color-scheme: light;
-  --chao: #ffffff;
-  --chao-2: #eef1f2;
-  --chao-3: #e1e6e8;
-  --linha: #cdd4d8;
-  --linha-forte: #7d878d;
-  --texto: #1b1f22;
-  --texto-2: #3a4146;
-  --texto-3: #535c62;
-  --placa: #00653a;
-  --placa-escura: #004d2c;
+  --chao: #fffaf3;
+  --chao-2: #f5ede3;
+  --chao-3: #ebe1d4;
+  --linha: #ddd2c4;
+  --linha-forte: #857b70;
+  --texto: #2b2f33;
+  --texto-2: #464b50;
+  --texto-3: #5c6166;
+  --placa: #c2410c;
+  --placa-escura: #9a3412;
   --placa-texto: #ffffff;
-  --placa-texto-2: #e2efe7;
+  --placa-texto-2: #fde3d3;
+  /* O laranja da marca como cor de texto sobre o chão. */
+  --placa-tinta: #b23b0b;
   --adv: #ffc20e;
   --adv-texto: #1b1f22;
   --reg: #c4161c;
@@ -43,8 +45,10 @@
   --texto: #f1f3f4;
   --texto-2: #cfd5d8;
   --texto-3: #a5aeb3;
-  --placa: #00653a;
-  --placa-escura: #00512f;
+  --placa: #c2410c;
+  --placa-escura: #d4561f;
+  /* Sobre o asfalto, o laranja escuro perde força: texto em laranja claro. */
+  --placa-tinta: #ff9e6e;
   --reg: #ff6b6b;
   --reg-fundo: #3a1a1b;
   --foco: #ffffff;

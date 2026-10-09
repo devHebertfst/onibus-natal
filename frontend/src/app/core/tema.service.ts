@@ -4,7 +4,7 @@ export type Tema = 'dia' | 'noite';
 
 const CHAVE = 'onibus-natal:tema';
 /** Cor da barra do sistema: o verde das placas nos dois temas. */
-const COR_BARRA = '#00653a';
+const COR_BARRA = '#c2410c';
 
 /**
  * Tema inteiro (tokens de cor, mapa, barra do sistema), não só os tiles.
