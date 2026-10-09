@@ -99,8 +99,7 @@
   }
 }
 
-.ajustes,
-.sobre-app {
+.ajustes {
   h3 {
     margin: 0 0 12px;
     font-size: 16px;
@@ -153,14 +152,6 @@
     i {
       transform: translateX(18px);
     }
-  }
-}
-
-.sobre-app {
-  padding-top: 18px;
-  border-top: 1px solid var(--linha);
-  p {
-    color: var(--texto-2);
   }
 }
 
