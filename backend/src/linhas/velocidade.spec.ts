@@ -92,6 +92,15 @@ describe('RastreadorVelocidade com hora do GPS', () => {
     expect(r.corrigir('A', norte(100), 10_000)).toBeUndefined();
   });
 
+  it('a posição anterior já vem com a hora real, se ela chegou', () => {
+    const r = new RastreadorVelocidade();
+    expect(r.posicaoAnterior('A')).toBeUndefined();
+    r.registrar('A', norte(0), 20_000, 5_000);
+    r.corrigir('A', norte(0), 2_000);
+    r.registrar('A', norte(100), 40_000, 30_000);
+    expect(r.posicaoAnterior('A')).toMatchObject({ ...norte(0), t: 2_000 });
+  });
+
   it('a hora corrigida não passa da posição anterior', () => {
     const r = new RastreadorVelocidade();
     r.registrar('A', norte(0), 0, 0);

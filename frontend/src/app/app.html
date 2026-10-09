@@ -192,11 +192,21 @@
                     Tempo previsto pela Nubus, com o GPS dos ônibus.
                   }
                   @case ('misto') {
-                    Tempo previsto pela Nubus; onde ela não respondeu, estimado pela distância a ~18
-                    km/h.
+                    @if (velocidadeMedida()) {
+                      Tempo previsto pela Nubus; onde ela não respondeu, estimado pelo ritmo recente
+                      dos ônibus da linha em cada trecho.
+                    } @else {
+                      Tempo previsto pela Nubus; onde ela não respondeu, estimado pela distância a
+                      ~18 km/h.
+                    }
                   }
                   @default {
-                    Tempo estimado pela distância até o ponto, a ~18 km/h.
+                    @if (velocidadeMedida()) {
+                      Tempo estimado pelo ritmo dos ônibus da linha em cada trecho até o ponto, nos
+                      últimos minutos.
+                    } @else {
+                      Tempo estimado pela distância até o ponto, a ~18 km/h.
+                    }
                   }
                 }
                 @if (l.desatualizado) {

@@ -17,6 +17,22 @@ export interface ItinerarioDto {
   /** Traçado ordenado no sentido de circulação: [[lat, lng], ...]. */
   tracado: [number, number][];
   paradas: ParadaDto[];
+  /** Velocidade de cada trecho, medida pelos ônibus da linha nos últimos minutos. */
+  trechos?: TrechosDto;
+}
+
+/**
+ * Velocidade por trecho do traçado. O trecho `k` vai de `k·tamanhoM` a
+ * `(k+1)·tamanhoM` metros do início do traçado. A velocidade conta o tempo
+ * parado (pontos, semáforos, trânsito), então serve direto para estimar
+ * tempo de viagem.
+ */
+export interface TrechosDto {
+  tamanhoM: number;
+  /** km/h por trecho; null onde nenhum ônibus passou nos últimos ~30 min. */
+  kmh: (number | null)[];
+  /** Média do itinerário inteiro (para trechos sem dado); null se ainda não há. */
+  mediaKmh: number | null;
 }
 
 export interface OnibusDto {

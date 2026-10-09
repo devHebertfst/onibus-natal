@@ -75,4 +75,28 @@ export const config = {
     /** Esquece veículos que não aparecem há esse tempo. */
     esquecerAposMs: 10 * 60_000,
   },
+
+  /**
+   * Velocidade por trecho do traçado, aprendida com os próprios ônibus da
+   * linha: cada par de posições consecutivas de um ônibus diz quanto tempo
+   * ele levou para percorrer aquele pedaço, paradas e semáforos incluídos.
+   */
+  trechos: {
+    /** Tamanho de cada trecho do traçado. */
+    tamanhoM: 300,
+    /** Posição mais longe que isso do traçado não conta (desvio, garagem). */
+    distanciaMaxRotaM: 60,
+    /** Entre duas posições mais espaçadas que isso, não dá para saber o que houve. */
+    intervaloMaxMs: 5 * 60_000,
+    /** Avanço maior que isso entre duas posições é salto, não percurso. */
+    avancoMaxM: 2_000,
+    /** Acima disso é erro de GPS ou de projeção. */
+    velocidadeMaxKmh: 80,
+    /** A cada meia-vida, uma observação pesa metade (o trânsito muda). */
+    meiaVidaMs: 10 * 60_000,
+    /** Trecho sem observação há mais que isso volta a ser desconhecido. */
+    janelaMs: 30 * 60_000,
+    /** Fração do trecho já percorrida (com o peso) para a velocidade valer. */
+    coberturaMin: 0.5,
+  },
 };

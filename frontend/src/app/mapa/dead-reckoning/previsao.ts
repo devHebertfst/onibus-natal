@@ -1,6 +1,5 @@
 import { Parada } from '../../core/linha.models';
 import { Frota } from './frota';
-import { VELOCIDADE_COMERCIAL_KMH } from './onibus-animado';
 import { Rota } from './rota';
 
 /** Um pouco depois da parada ainda conta como "chegando" (ruído de GPS). */
@@ -59,7 +58,6 @@ export function preverChegadas(
   if (sParada === undefined) return [];
   const todas = [...sPorParada.values()];
 
-  const ms = VELOCIDADE_COMERCIAL_KMH / 3.6;
   const previsoes: Previsao[] = [];
   for (const animado of frota.onibus.values()) {
     const pos = animado.posicaoNaRota();
@@ -70,7 +68,9 @@ export function preverChegadas(
     const noCaminho = todas.filter(
       (s) => s > pos.s + MARGEM_PARADA_M && s < sParada - MARGEM_PARADA_M,
     ).length;
-    previsoes.push({ onibus: animado.id, metros, minutos: metros / ms / 60, paradas: noCaminho });
+    // Trecho a trecho, na velocidade que os ônibus da linha estão fazendo.
+    const minutos = rota.perfil.segundosEntre(sParada - metros, sParada) / 60;
+    previsoes.push({ onibus: animado.id, metros, minutos, paradas: noCaminho });
   }
   return previsoes.sort((a, b) => a.minutos - b.minutos);
 }

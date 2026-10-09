@@ -26,7 +26,16 @@ import {
 } from '../nubus/nubus.parse.js';
 import type { ItinerarioDto, LinhaDto, OnibusDto } from './linha.dto.js';
 import { RastreadorVelocidade } from './velocidade.js';
+import { VelocidadeTrechos } from './trechos.js';
 import { RelogioGps } from '../nubus/relogio-gps.js';
+
+export interface ResumoTrechos {
+  linha: string;
+  itinerario: string;
+  /** % dos trechos do traçado com velocidade medida. */
+  cobertura: number;
+  mediaKmh: number | null;
+}
 
 export interface ItinerarioRef {
   codigo: string;
@@ -46,6 +55,8 @@ interface LinhaAcompanhada {
   snapshotEm?: number;
   /** Atualização em andamento, compartilhada por quem pedir ao mesmo tempo. */
   emAndamento?: Promise<LinhaDto>;
+  /** Velocidade por trecho, aprendida com os ônibus desta linha. */
+  trechos: VelocidadeTrechos;
 }
 
 // Com ponto por causa de linhas como a "745.1".
@@ -124,7 +135,12 @@ export class LinhasService {
           'Muitas linhas acompanhadas no momento, tente novamente em instantes',
         );
       }
-      linha = { numero, ultimoAcesso: Date.now(), assinantes: 0 };
+      linha = {
+        numero,
+        ultimoAcesso: Date.now(),
+        assinantes: 0,
+        trechos: new VelocidadeTrechos(),
+      };
       this.linhas.set(numero, linha);
     }
     linha.ultimoAcesso = Date.now();
@@ -168,6 +184,24 @@ export class LinhasService {
       l.snapshot && l.itinerarios
         ? [{ snapshot: l.snapshot, itinerarios: l.itinerarios.lista }]
         : [],
+    );
+  }
+
+  /** Quanto de cada itinerário já tem velocidade medida (para o diagnóstico). */
+  resumoTrechos(): ResumoTrechos[] {
+    return [...this.linhas.values()].flatMap((l) =>
+      (l.snapshot?.itinerarios ?? []).flatMap((it) => {
+        if (!it.trechos) return [];
+        const medidos = it.trechos.kmh.filter((v) => v !== null).length;
+        return [
+          {
+            linha: l.numero,
+            itinerario: it.codigo,
+            cobertura: Math.round((100 * medidos) / it.trechos.kmh.length),
+            mediaKmh: it.trechos.mediaKmh,
+          },
+        ];
+      }),
     );
   }
 
@@ -310,6 +344,7 @@ export class LinhasService {
       }
     });
 
+    linha.trechos.definirTracados(itinerariosDto);
     const onibus: OnibusDto[] = [];
     // A posição foi medida antes de o backend vê-la: desconta o atraso típico
     // e, quando a previsão de chegada contou a hora real do GPS, usa ela.
@@ -320,6 +355,13 @@ export class LinhasService {
       if (gps) {
         const medido = this.velocidade.corrigir(id, gps, gps.gpsEm);
         if (medido !== undefined) this.relogio.registrarAtraso(medido);
+      }
+      // Os trechos andam uma posição atrás, com a hora já corrigida pelo GPS.
+      const anterior = this.velocidade.posicaoAnterior(id);
+      if (anterior) {
+        for (const codigo of v.itinerarios) {
+          linha.trechos.observar(codigo, id, anterior, anterior.t);
+        }
       }
       onibus.push({
         id,
@@ -333,12 +375,16 @@ export class LinhasService {
       });
     }
     onibus.sort((a, b) => a.id.localeCompare(b.id, 'pt-BR', { numeric: true }));
+    linha.trechos.esquecerAntigos(agora);
 
     const snapshot: LinhaDto = {
       numero: linha.numero,
       atualizadoEm: new Date(agora).toISOString(),
       desatualizado: falhou,
-      itinerarios: itinerariosDto,
+      itinerarios: itinerariosDto.map((it) => ({
+        ...it,
+        trechos: linha.trechos.velocidades(it.codigo, agora),
+      })),
       onibus,
     };
     linha.snapshot = snapshot;

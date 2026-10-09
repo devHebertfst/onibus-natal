@@ -1,5 +1,6 @@
 import { Itinerario, Linha } from '../../core/linha.models';
 import { OnibusAnimado } from './onibus-animado';
+import { PerfilVelocidade } from './perfil-velocidade';
 import { Rota } from './rota';
 
 /**
@@ -19,6 +20,10 @@ export class Frota {
   /** Aplica uma resposta do backend. Devolve os ids que sumiram. */
   sincronizar(linha: Linha, recebidoEm: number, agora = recebidoEm): string[] {
     this.definirRotas(linha.itinerarios);
+    for (const it of linha.itinerarios) {
+      const rota = this.rotas.get(it.codigo);
+      if (rota) rota.perfil = new PerfilVelocidade(it.trechos);
+    }
 
     // A API não tem horário de GPS; usamos "há quanto tempo o backend vê esta
     // posição", no relógio do servidor, e trazemos para o relógio do navegador.
