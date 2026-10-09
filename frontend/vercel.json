@@ -6,7 +6,7 @@
   "rewrites": [
     {
       "source": "/api/:caminho*",
-      "destination": "https://SEU-BACKEND.onrender.com/api/:caminho*"
+      "destination": "https://onibus-natal-api.onrender.com/api/:caminho*"
     },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
