@@ -457,11 +457,14 @@
       </section>
     </section>
     <section class="pagina-menu" [hidden]="menuAtual() !== 'favoritas'" aria-label="favoritas">
+      @if (carregando() && !linha()) {
+        <p class="carregando" role="status">Abrindo a linha {{ numero() }}…</p>
+      }
       @if (fav.favoritas().length) {
         <ul class="linhas-salvas">
           @for (n of fav.favoritas(); track n) {
             <li>
-              <button type="button" class="abrir-salva" (click)="acompanhar(n)">
+              <button type="button" class="abrir-salva" (click)="acompanhar(n, 'favoritas')">
                 <b class="numero-salvo">{{ n }}</b>
                 <span
                   ><strong>{{ fav.destinos()[n] || 'Linha ' + n }}</strong
@@ -506,7 +509,7 @@
           <ul class="linhas-salvas">
             @for (n of fav.recentes(); track n) {
               <li>
-                <button type="button" class="abrir-salva" (click)="acompanhar(n)">
+                <button type="button" class="abrir-salva" (click)="acompanhar(n, 'favoritas')">
                   <b class="numero-salvo" [class.atual]="n === numero()">{{ n }}</b
                   ><span
                     ><strong>{{ fav.destinos()[n] || 'Linha ' + n }}</strong
