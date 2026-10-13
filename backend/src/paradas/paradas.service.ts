@@ -6,6 +6,8 @@ import {
   NotFoundException,
   OnApplicationBootstrap,
 } from '@nestjs/common';
+import { CachePersistente } from '../banco/cache-persistente.js';
+import { ValorGuardado } from '../banco/valor-guardado.js';
 import { config } from '../config.js';
 import { haversine } from '../linhas/geo.js';
 import { emParalelo, numeroDaLinha } from '../linhas/linhas.service.js';
@@ -57,7 +59,14 @@ interface Rede {
   itinerarios: Map<string, ItinerarioNaParada[]>;
   /** Todos os itinerários com as paradas em ordem, para o planejador de trajetos. */
   malha: ItinerarioMalha[];
-  montadaEm: number;
+}
+
+/** A rede como vai para o banco: mapas viram listas de pares. */
+interface RedeSalva {
+  paradas: ParadaCidade[];
+  linhas: [string, LinhaNaParadaDto[]][];
+  itinerarios: [string, ItinerarioNaParada[]][];
+  malha: ItinerarioMalha[];
 }
 
 interface PrevisaoGuardada {
@@ -70,20 +79,42 @@ interface PrevisaoGuardada {
  * Paradas da cidade e quais linhas passam em cada uma. A API não tem esse
  * índice nem uma lista de linhas: a busca de rotas é por trecho, então
  * buscar "0" a "9" traz todas as que têm número (~120 itinerários), e as
- * paradas de cada itinerário dizem por onde ele passa. Montado uma vez por dia.
+ * paradas de cada itinerário dizem por onde ele passa.
+ *
+ * Montar custa ~130 consultas à API, então o índice fica guardado no banco:
+ * o servidor que acorda lê de lá. Remontado uma vez por dia, em segundo
+ * plano (quem pede nesse meio-tempo recebe o anterior).
  */
 @Injectable()
 export class ParadasService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ParadasService.name);
-  private rede?: Rede;
-  private emAndamento?: Promise<Rede>;
+  private readonly rede: ValorGuardado<Rede, RedeSalva>;
   private readonly previsoesGuardadas = new Map<string, PrevisaoGuardada>();
 
   constructor(
     private readonly nubus: NubusClient,
     private readonly catalogo: CatalogoRotasService,
     private readonly relogio: RelogioGps = new RelogioGps(),
-  ) {}
+    cache: CachePersistente = new CachePersistente(null),
+  ) {
+    this.rede = new ValorGuardado(cache, {
+      chave: 'rede-paradas:v1',
+      validadeMs: config.paradasTtlMs,
+      montar: () => this.montar(),
+      serializar: (r) => ({
+        paradas: r.paradas,
+        linhas: [...r.linhas],
+        itinerarios: [...r.itinerarios],
+        malha: r.malha,
+      }),
+      desserializar: (s) => ({
+        paradas: s.paradas,
+        linhas: new Map(s.linhas),
+        itinerarios: new Map(s.itinerarios),
+        malha: s.malha,
+      }),
+    });
+  }
 
   onApplicationBootstrap(): void {
     if (!config.aquecerParadas) return;
@@ -248,20 +279,11 @@ export class ParadasService implements OnApplicationBootstrap {
   }
 
   private obterRede(): Promise<Rede> {
-    const rede = this.rede;
-    if (rede && Date.now() - rede.montadaEm < config.paradasTtlMs)
-      return Promise.resolve(rede);
-    this.emAndamento ??= this.montar()
-      .then((nova) => (this.rede = nova))
-      .catch((e: unknown) => {
-        // Índice vencido é melhor que nenhum.
-        if (rede) return rede;
-        throw new BadGatewayException(
-          `API de transporte indisponível: ${(e as Error).message}`,
-        );
-      })
-      .finally(() => (this.emAndamento = undefined));
-    return this.emAndamento;
+    return this.rede.obter().catch((e: unknown) => {
+      throw new BadGatewayException(
+        `API de transporte indisponível: ${(e as Error).message}`,
+      );
+    });
   }
 
   private async montar(): Promise<Rede> {
@@ -338,7 +360,6 @@ export class ParadasService implements OnApplicationBootstrap {
       linhas,
       itinerarios: porParada,
       malha,
-      montadaEm: Date.now(),
     };
   }
 }

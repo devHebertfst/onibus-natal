@@ -6,7 +6,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import pg from 'pg';
+import { bancoCompartilhado } from '../banco/banco.js';
 import { config } from '../config.js';
 import type { FonteHistorico, PercursoTipico } from '../linhas/trechos.js';
 import { ArmazemTrechos, type RegistroTrecho } from './armazem-trechos.js';
@@ -185,7 +185,6 @@ export class HistoricoTrechos implements FonteHistorico, OnApplicationShutdown {
   /** Ao desligar (deploy, servidor dormindo), não perde o que foi medido. */
   async onApplicationShutdown(): Promise<void> {
     await this.gravar();
-    await this.armazem?.encerrar();
   }
 
   /** Histórico do itinerário no tipo de dia de `agora`; (re)lê do banco se preciso. */
@@ -259,25 +258,6 @@ export function horarioLocal(
 }
 
 function armazemPostgres(p: ParametrosHistorico): ArmazemTrechos | null {
-  if (!p.databaseUrl) return null;
-  const pool = new pg.Pool({
-    // O Neon entrega a URL com sslmode=require, que o `pg` já trata como
-    // verify-full (com um aviso enorme no log); dizer isso explicitamente
-    // mantém a mesma segurança sem o aviso.
-    connectionString: p.databaseUrl.replace(
-      /sslmode=require\b/,
-      'sslmode=verify-full',
-    ),
-    max: 2,
-    // O Neon derruba conexões ociosas: melhor fechar antes.
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 10_000,
-  });
-  // Sem isso, uma conexão ociosa derrubada pelo servidor derruba o processo.
-  pool.on('error', (e) =>
-    new Logger(HistoricoTrechos.name).warn(
-      `Conexão com o banco caiu: ${e.message}`,
-    ),
-  );
-  return new ArmazemTrechos(pool, p.meiaVidaMs, () => pool.end());
+  const db = bancoCompartilhado();
+  return db ? new ArmazemTrechos(db, p.meiaVidaMs) : null;
 }

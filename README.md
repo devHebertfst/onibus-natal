@@ -148,8 +148,10 @@ o índice de paradas e usa o cache de itinerários (6 horas por padrão).
 - `GET /api/paradas/proximas?lat=-5.8&lng=-35.2`: até 8 paradas em um raio de
   600 m, com as linhas e os sentidos que passam nelas. O parâmetro opcional
   `raio` aceita até 1500 m. O backend monta um índice de paradas e itinerários,
-  compartilhado por todos os usuários e atualizado a cada 24 h. O aquecimento
-  começa ao iniciar o servidor; a primeira busca pode aguardar sua conclusão.
+  compartilhado por todos os usuários e atualizado a cada 24 h. Com banco
+  (`DATABASE_URL`), o índice fica guardado e o servidor que acorda lê de lá
+  (veja "Guardado no banco"); sem banco, o aquecimento começa ao iniciar o
+  servidor e a primeira busca pode aguardar sua conclusão.
 - `GET /api/trajetos?from_lat=-5.7945&from_lng=-35.211&to_lat=-5.835&to_lng=-35.207&datetime=2026-10-08T08:00`:
   alternativas de viagem com horários, trechos a pé e de ônibus e traçados
   decodificados. `datetime` é opcional e usa a hora de Natal, independente do
@@ -235,6 +237,14 @@ os próprios ônibus da linha: duas posições consecutivas de um ônibus dizem
   desconhecida. Sem medida, vale o histórico (abaixo); sem ele, a média do
   itinerário; sem média, 18 km/h. As contas limitam a velocidade a 5–60 km/h.
 
+**Guardado no banco (Postgres/Neon).** Montar o índice de paradas custa ~130
+consultas à API e o catálogo de linhas, 10. Com `DATABASE_URL`, os dois ficam
+guardados (JSON compactado na tabela `cache_persistente`): o servidor que
+acorda (o Render free dorme após ~15 min) lê de lá em vez de refazer as
+consultas. Vencidos (24 h o índice, 6 h o catálogo), continuam sendo servidos
+enquanto a versão nova é montada em segundo plano, então ninguém espera a
+remontagem; se a API falhar, segue com o anterior e tenta de novo em 5 min.
+
 **Histórico por horário (Postgres/Neon).** Com `DATABASE_URL`, o backend
 guarda quanto os ônibus levam em cada trecho por tipo de dia (útil, sábado,
 domingo) e faixa de 30 min, no horário de Natal. Assim, uma linha recém-
@@ -246,7 +256,7 @@ horário em vez de 18 km/h, e as medidas ao vivo vão tomando o lugar.
   vizinhas com meio peso.
 - Medidas antigas perdem metade do peso a cada 14 dias. Se o traçado do
   itinerário mudar, o histórico dele recomeça.
-- Uma tabela só (`velocidade_trecho`), criada sozinha na 1ª conexão.
+- Tabela `velocidade_trecho`, criada sozinha na 1ª conexão.
 - Sem `DATABASE_URL`, ou com o banco fora do ar, tudo funciona só com as
   medidas ao vivo; `/api/diagnostico` mostra em `historico` se está gravando
   e a última falha.
