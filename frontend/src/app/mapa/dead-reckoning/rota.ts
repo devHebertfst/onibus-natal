@@ -10,6 +10,16 @@ import { PerfilVelocidade } from './perfil-velocidade';
 
 const METROS_POR_GRAU = 111_195;
 
+/**
+ * Desaceleração perto das paradas, no desenho: o ônibus reduz nos metros
+ * antes da parada até uma fração da velocidade de cruzeiro e retoma depois.
+ */
+const FREIA_ANTES_M = 60;
+const RETOMA_DEPOIS_M = 30;
+const FRACAO_NA_PARADA = 0.3;
+/** Resolução do perfil (m). */
+const PASSO_PERFIL_M = 5;
+
 export interface Projecao {
   /** Distância ao longo do traçado (m). */
   s: number;
@@ -122,6 +132,78 @@ export class Rota {
       else hi = mid - 1;
     }
     return lo;
+  }
+
+  /**
+   * Paradas no traçado, para a desaceleração do desenho. Projeta em ordem,
+   * com a anterior como dica (o traçado pode repetir ruas).
+   */
+  definirParadas(paradas: { lat: number; lng: number; ordem: number }[]): void {
+    const posicoes: number[] = [];
+    let dica: number | undefined;
+    for (const p of [...paradas].sort((a, b) => a.ordem - b.ordem)) {
+      dica = this.projetar(p.lat, p.lng, dica).s;
+      posicoes.push(dica);
+    }
+    posicoes.sort((a, b) => a - b);
+
+    // Fator de velocidade a cada 5 m (1 = cruzeiro) e o "custo" acumulado
+    // ∫ 1/fator: andar pelo perfil é andar por esse custo a passo constante.
+    const n = Math.ceil(this.comprimento / PASSO_PERFIL_M) + 1;
+    const custo = new Float64Array(n);
+    let j = 0;
+    for (let k = 1; k < n; k++) {
+      const s = (k - 0.5) * PASSO_PERFIL_M;
+      while (j < posicoes.length - 1 && posicoes[j + 1] <= s) j++;
+      let fator = 1;
+      for (const p of [posicoes[j], posicoes[j + 1]]) {
+        if (p === undefined) continue;
+        const d = s - p; // < 0: chegando; > 0: saindo
+        const t = d < 0 ? -d / FREIA_ANTES_M : d / RETOMA_DEPOIS_M; // 0 na parada, 1 longe
+        if (t < 1) fator = Math.min(fator, FRACAO_NA_PARADA + (1 - FRACAO_NA_PARADA) * t);
+      }
+      custo[k] = custo[k - 1] + PASSO_PERFIL_M / fator;
+    }
+    this.custo = posicoes.length > 0 ? custo : null;
+  }
+
+  /**
+   * Onde o ônibus está depois de andar `metros` a partir de `s0`, freando
+   * nas paradas. A velocidade de cruzeiro é ajustada para que, ao fim de
+   * `janela` metros, o tempo gasto seja o mesmo da velocidade constante: a
+   * média não muda, só o formato do movimento.
+   */
+  avancar(s0: number, metros: number, janela: number): number {
+    const custo = this.custo;
+    if (!custo || metros <= 0 || janela <= 0) return s0 + metros;
+    const c0 = this.custoEm(s0);
+    const fim = Math.min(this.comprimento, s0 + janela);
+    if (fim <= s0) return s0 + metros;
+    const escala = (this.custoEm(fim) - c0) / (fim - s0);
+    return this.sDoCusto(c0 + metros * escala);
+  }
+
+  private custo: Float64Array | null = null;
+
+  private custoEm(s: number): number {
+    const custo = this.custo!;
+    const x = Math.max(0, Math.min(this.comprimento, s)) / PASSO_PERFIL_M;
+    const i = Math.min(custo.length - 2, Math.floor(x));
+    return custo[i] + (custo[i + 1] - custo[i]) * (x - i);
+  }
+
+  private sDoCusto(c: number): number {
+    const custo = this.custo!;
+    if (c >= custo[custo.length - 1]) return this.comprimento;
+    let lo = 0;
+    let hi = custo.length - 1;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (custo[mid] <= c) lo = mid;
+      else hi = mid;
+    }
+    const t = (c - custo[lo]) / (custo[hi] - custo[lo] || 1);
+    return Math.min(this.comprimento, (lo + t) * PASSO_PERFIL_M);
   }
 
   private paraXY(lat: number, lng: number): [number, number] {

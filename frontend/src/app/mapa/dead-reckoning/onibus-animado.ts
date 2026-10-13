@@ -180,10 +180,15 @@ export class OnibusAnimado {
     return { lat: pos[0], lng: pos[1], rumo: rumoAtual, itinerario: this.rota?.codigo ?? null };
   }
 
+  /**
+   * Onde o ônibus deveria estar agora: a velocidade média vezes o tempo,
+   * freando perto das paradas (a média nos 60 s de extrapolação é a mesma).
+   */
   private alvo(agora: number): number {
     const rota = this.rota!;
     const dt = Math.max(0, Math.min(EXTRAPOLACAO_MAX_S, (agora - this.tFix) / 1000));
-    return Math.min(rota.comprimento, this.sFix + this.velocidadeEfetiva() * dt);
+    const v = this.velocidadeEfetiva();
+    return Math.min(rota.comprimento, rota.avancar(this.sFix, v * dt, v * EXTRAPOLACAO_MAX_S));
   }
 
   /**
