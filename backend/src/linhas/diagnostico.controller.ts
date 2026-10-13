@@ -6,6 +6,7 @@ import {
 import { RelogioGps, type ResumoAtraso } from '../nubus/relogio-gps.js';
 import { ColetorTroncais, type ResumoColeta } from './coletor.js';
 import { LinhasService, type ResumoTrechos } from './linhas.service.js';
+import { PlacarPrevisao, type ResumoPlacar } from './placar.js';
 import { TransitoCidade, type ResumoTransito } from './transito.js';
 
 /**
@@ -22,6 +23,7 @@ export class DiagnosticoController {
     private readonly historico: HistoricoTrechos,
     private readonly transito: TransitoCidade,
     private readonly coletor: ColetorTroncais,
+    private readonly placar: PlacarPrevisao,
   ) {}
 
   @Get()
@@ -32,6 +34,7 @@ export class DiagnosticoController {
     historico: ResumoHistorico;
     transito: ResumoTransito;
     coleta: ResumoColeta;
+    placar: ResumoPlacar;
   } {
     return {
       atrasoGps: this.relogio.resumo(),
@@ -40,6 +43,7 @@ export class DiagnosticoController {
       historico: this.historico.resumo(),
       transito: this.transito.resumo(),
       coleta: this.coletor.resumo(),
+      placar: this.placar.resumo(),
     };
   }
 }

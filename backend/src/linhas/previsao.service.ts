@@ -13,6 +13,7 @@ import { parsePrevisoes } from '../nubus/nubus.parse.js';
 import type { NubusPrevisao } from '../nubus/nubus.types.js';
 import type { ChegadaDto, PrevisaoDto } from './linha.dto.js';
 import { LinhasService } from './linhas.service.js';
+import { PlacarPrevisao } from './placar.js';
 
 /** Viagens da tabela além dos ônibus ao vivo: as próximas bastam. */
 const MAX_PROGRAMADAS = 3;
@@ -59,6 +60,7 @@ export class PrevisaoService {
     private readonly linhas: LinhasService,
     private readonly nubus: NubusClient,
     private readonly relogio: RelogioGps = new RelogioGps(),
+    private readonly placar: PlacarPrevisao = new PlacarPrevisao(null),
   ) {}
 
   /**
@@ -153,11 +155,18 @@ export class PrevisaoService {
     }
     const agora = Date.now();
     this.relogio.registrarPrevisoes(brutas, agora);
+    const chegadas = montarChegadas(brutas, agora);
+    this.placar.registrarNubus(
+      ref.codigo,
+      parada,
+      chegadas.map((c) => ({ ...c, chegaEm: Date.parse(c.chegaEm) })),
+      agora,
+    );
     return {
       itinerario: ref.codigo,
       parada,
       consultadoEm: new Date(agora).toISOString(),
-      chegadas: montarChegadas(brutas, agora),
+      chegadas,
     };
   }
 

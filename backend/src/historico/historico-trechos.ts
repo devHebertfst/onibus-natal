@@ -9,6 +9,7 @@ import { Interval } from '@nestjs/schedule';
 import { bancoCompartilhado } from '../banco/banco.js';
 import { config } from '../config.js';
 import type { FonteHistorico, PercursoTipico } from '../linhas/trechos.js';
+import { ehFeriado } from './feriados.js';
 import { ArmazemTrechos, type RegistroTrecho } from './armazem-trechos.js';
 
 export const ARMAZEM_TRECHOS = Symbol('ARMAZEM_TRECHOS');
@@ -242,15 +243,17 @@ export class HistoricoTrechos implements FonteHistorico, OnApplicationShutdown {
   }
 }
 
-/** Tipo de dia e faixa de horário de um instante, no horário de Natal. */
+/** Tipo de dia (feriado conta como domingo) e faixa de horário, no horário de Natal. */
 export function horarioLocal(
   t: number,
   p: Pick<ParametrosHistorico, 'fusoMin' | 'faixaMin'> = config.historico,
 ): { tipoDia: number; faixa: number } {
   const local = new Date(t + p.fusoMin * 60_000);
   const dia = local.getUTCDay();
+  // Feriado tem trânsito e tabela de domingo.
+  const domingo = dia === 0 || ehFeriado(local.toISOString().slice(0, 10));
   return {
-    tipoDia: dia === 0 ? 2 : dia === 6 ? 1 : 0,
+    tipoDia: domingo ? 2 : dia === 6 ? 1 : 0,
     faixa: Math.floor(
       (local.getUTCHours() * 60 + local.getUTCMinutes()) / p.faixaMin,
     ),
