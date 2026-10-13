@@ -164,18 +164,46 @@
     border: none;
   }
 
+  /* Maior que a parada (18px), cheio de azul e com halo: não se confunde
+     com o círculo branco de contorno escuro das paradas. */
   .eu {
     position: absolute;
-    left: -9px;
-    top: -9px;
-    width: 18px;
-    height: 18px;
+    left: -12px;
+    top: -12px;
+    width: 24px;
+    height: 24px;
     box-sizing: border-box;
-    border: 3px solid #fff;
+    border: 4px solid #fff;
     border-radius: 50%;
-    background: #1b1f22;
-    box-shadow:
-      0 0 0 2px #1b1f22,
-      0 1px 4px rgb(0 0 0 / 35%);
+    background: var(--eu);
+    box-shadow: 0 1px 6px rgb(0 0 0 / 45%);
+
+    &::before {
+      content: '';
+      position: absolute;
+      inset: -16px;
+      z-index: -1;
+      border-radius: 50%;
+      background: var(--eu);
+      opacity: 0.18;
+      animation: eu-halo 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+    }
+  }
+
+  @keyframes eu-halo {
+    0% {
+      transform: scale(0.45);
+      opacity: 0.35;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .eu::before {
+      animation: none;
+    }
   }
 }

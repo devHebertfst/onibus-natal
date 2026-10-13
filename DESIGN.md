@@ -374,7 +374,7 @@ A peça que define o produto: uma placa de indicação com o ponto do passageiro
 ### Marcadores do mapa
 - **Ônibus:** quadrado na cor do sentido com seta branca no rumo. Sem rótulo, para não se atropelarem; o ônibus seguido pela placa ganha plaquinha laranja com o tempo ("6 min", "chegando") e o selecionado, plaquinha invertida com número e velocidade. Selecionado: cresce 1,2× e ganha anel de asfalto de 3px. A cor vem da mesma regra da lista: sentido inferido ou, sem ele, o único itinerário da API.
 - **Parada:** alvo de 44px com desenho pequeno no centro; abaixo do zoom 15 o desenho vira pontinho de 8px, para não cobrir o traçado. Ativa, mini placa laranja com filete.
-- **Passageiro:** ponto de 18px em asfalto com borda branca de 3px.
+- **Passageiro:** ponto azul de 24px (Azul Localização, `#1a73e8`; `#4c8df6` à noite) com borda branca de 4px e halo azul que pulsa devagar (parado com movimento reduzido). É o único azul fora dos sentidos: o ponto azul do GPS é a convenção de todo app de mapa, e cor cheia mais tamanho maior o separam do círculo branco das paradas.
 - **Traçado:** linha cheia na cor do sentido sobre contorno 4px mais largo na cor do chão, como mapa de rota impresso. O primeiro sentido tem 8px e o segundo 3,5px por dentro dele (os demais, 2,5px): no tronco comum de ida e volta aparecem as duas cores.
 
 ### Limites conhecidos
