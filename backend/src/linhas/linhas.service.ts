@@ -169,23 +169,27 @@ export class LinhasService {
 
   /**
    * Uma leitura da linha para o coletor de troncais, sem contar como acesso.
-   * Se alguém está com ela aberta, não faz nada: o ciclo normal já mede.
+   * Devolve quantos percursos viraram velocidade nessa leitura, ou `null` se
+   * não leu: alguém está com a linha aberta (o ciclo normal já mede) ou não
+   * há vaga.
    */
-  async coletar(numeroBruto: string): Promise<void> {
+  async coletar(numeroBruto: string): Promise<number | null> {
     const numero = normalizarNumero(numeroBruto);
     let linha = this.linhas.get(numero);
-    if (linha && !linha.somenteColeta) return;
+    if (linha && !linha.somenteColeta) return null;
     if (!linha) {
-      if (this.linhas.size >= config.maxLinhasAcompanhadas) return;
+      if (this.linhas.size >= config.maxLinhasAcompanhadas) return null;
       linha = this.nova(numero, true);
       this.linhas.set(numero, linha);
     }
+    const antes = linha.trechos.totalMedidas;
     try {
       await this.atualizar(linha);
     } catch (e) {
       if (!linha.snapshot) this.linhas.delete(numero);
       throw e;
     }
+    return linha.trechos.totalMedidas - antes;
   }
 
   private async snapshotDe(linha: LinhaAcompanhada): Promise<LinhaDto> {

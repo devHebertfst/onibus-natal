@@ -43,6 +43,8 @@ describe('escolherTroncais', () => {
     ];
     expect(escolherTroncais(malha, 3)).toEqual(['A']);
     expect(escolherTroncais(malha.slice(1), 3)).toEqual([]);
+    // A fora da disputa: B e C passam a valer (as ruas de A ainda contam)
+    expect(escolherTroncais(malha, 3, new Set(['A']))).toEqual(['B', 'C']);
   });
 });
 
@@ -60,24 +62,29 @@ describe('faixas de horário', () => {
 });
 
 describe('ColetorTroncais', () => {
-  const novo = (linhas = 'auto') => {
+  /** Duas avenidas: A e B dividem uma; C e D, a outra. */
+  const malha = [
+    itinerario('A', avenida(0, 2000)),
+    itinerario('B', avenida(0, 1000)),
+    itinerario('C', avenida(0, 2000, -35.25)),
+    itinerario('D', avenida(0, 800, -35.25)),
+  ];
+  /** `rende`: quantas medidas cada leitura da linha dá (padrão: 3). */
+  const novo = (linhas = 'auto', rende: Record<string, number> = {}) => {
     const lidas: string[] = [];
     const coletor = new ColetorTroncais(
       {
         coletar: vi.fn(async (n: string) => {
           lidas.push(n);
+          return rende[n] ?? 3;
         }),
       } as unknown as LinhasService,
-      {
-        malha: async () => [
-          itinerario('A', avenida(0, 2000)),
-          itinerario('B', avenida(0, 1000)),
-        ],
-      } as unknown as ParadasService,
+      { malha: async () => malha } as unknown as ParadasService,
       {
         ...config.coleta,
         ativa: true,
         linhas,
+        quantasAuto: 1,
         horas: '6-9',
         pausaMs: 0,
       },
@@ -96,6 +103,40 @@ describe('ColetorTroncais', () => {
     await coletor.tique(SETE_DA_MANHA + 5 * 60 * MIN); // meio-dia
     expect(lidas).toHaveLength(4);
     expect(coletor.resumo()).toMatchObject({ linhas: ['A'], rajadas: 2 });
+  });
+
+  it('troca a troncal que passa 2 rajadas sem ônibus andando', async () => {
+    const { coletor, lidas } = novo('auto', { A: 0 });
+    await coletor.tique(SETE_DA_MANHA);
+    expect(coletor.resumo().linhas).toEqual(['A']); // 1 rajada vazia: espera
+    await coletor.tique(SETE_DA_MANHA + 15 * MIN);
+    const r = coletor.resumo();
+    expect(r.descartadas).toEqual(['A']);
+    expect(r.linhas).toHaveLength(1);
+    expect(r.linhas).not.toContain('A');
+    // a próxima rajada já lê a substituta
+    lidas.length = 0;
+    await coletor.tique(SETE_DA_MANHA + 30 * MIN);
+    expect(lidas).toEqual([r.linhas![0], r.linhas![0]]);
+  });
+
+  it('não troca linha que alguém está acompanhando nem linhas da configuração', async () => {
+    const aberta = novo('auto', {});
+    // coletar devolve null: a linha está aberta no ciclo normal
+    (
+      aberta.coletor as unknown as { linhas: { coletar: () => unknown } }
+    ).linhas.coletar = async () => null;
+    await aberta.coletor.tique(SETE_DA_MANHA);
+    await aberta.coletor.tique(SETE_DA_MANHA + 15 * MIN);
+    expect(aberta.coletor.resumo().descartadas).toEqual([]);
+
+    const fixas = novo('33', { '33': 0 });
+    await fixas.coletor.tique(SETE_DA_MANHA);
+    await fixas.coletor.tique(SETE_DA_MANHA + 15 * MIN);
+    expect(fixas.coletor.resumo()).toMatchObject({
+      linhas: ['33'],
+      descartadas: [],
+    });
   });
 
   it('usa a lista da configuração quando não é "auto"', async () => {
@@ -136,10 +177,10 @@ describe('LinhasService.coletar', () => {
 
   it('mede a velocidade com duas leituras, fora do ciclo normal', async () => {
     const service = new LinhasService(client as unknown as NubusClient);
-    await service.coletar('33');
+    expect(await service.coletar('33')).toBe(0); // 1ª leitura: nada a medir
     vi.setSystemTime(SETE_DA_MANHA + MIN);
     posicaoM = 300;
-    await service.coletar('33');
+    expect(await service.coletar('33')).toBe(1); // um percurso medido
 
     // 300 m em 60 s, medido na hora (sem esperar a posição seguinte)
     expect(service.resumoTrechos()).toEqual([

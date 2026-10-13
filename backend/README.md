@@ -33,7 +33,7 @@ npm run test:e2e      # teste HTTP com a API externa simulada
 | `HISTORICO_GRAVAR_MS` | `300000`                                   | Intervalo da gravação do histórico em lote  |
 | `COLETA`          | `true`                                         | `false` desliga o coletor de troncais       |
 | `COLETA_LINHAS`   | `auto`                                         | Troncais do coletor: `auto` ou `33,85,...`  |
-| `COLETA_QUANTAS`  | `5`                                            | Quantas troncais no modo `auto`             |
+| `COLETA_QUANTAS`  | `10`                                           | Quantas troncais no modo `auto`             |
 | `COLETA_HORAS`    | `6-9,16-19`                                    | Faixas de horário de Natal das rajadas      |
 | `COLETA_INTERVALO_MS` | `900000`                                   | Intervalo entre rajadas                     |
 | `FERIADOS_EXTRA`  | (nenhum)                                       | Feriados a mais, "MM-DD" ou "AAAA-MM-DD", separados por vírgula |
