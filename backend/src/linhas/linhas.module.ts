@@ -3,6 +3,7 @@ import { HistoricoTrechos } from '../historico/historico-trechos.js';
 import { NubusModule } from '../nubus/nubus.module.js';
 import { ParadasModule } from '../paradas/paradas.module.js';
 import { ColetorTroncais } from './coletor.js';
+import { PlacarPrevisao } from './placar.js';
 import { TransitoCidade } from './transito.js';
 import { DiagnosticoController } from './diagnostico.controller.js';
 import { LinhasController } from './linhas.controller.js';
@@ -18,6 +19,7 @@ import { PrevisaoService } from './previsao.service.js';
     HistoricoTrechos,
     TransitoCidade,
     ColetorTroncais,
+    PlacarPrevisao,
   ],
 })
 export class LinhasModule {}

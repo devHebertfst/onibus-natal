@@ -28,6 +28,7 @@ import type { ItinerarioDto, LinhaDto, OnibusDto } from './linha.dto.js';
 import { RastreadorVelocidade } from './velocidade.js';
 import { VelocidadeTrechos } from './trechos.js';
 import { TransitoCidade } from './transito.js';
+import { PlacarPrevisao, type OnibusObservado } from './placar.js';
 import { RelogioGps } from '../nubus/relogio-gps.js';
 import { HistoricoTrechos } from '../historico/historico-trechos.js';
 
@@ -94,6 +95,7 @@ export class LinhasService {
     private readonly relogio: RelogioGps = new RelogioGps(),
     private readonly historico: HistoricoTrechos = new HistoricoTrechos(null),
     private readonly transito: TransitoCidade = new TransitoCidade(),
+    private readonly placar: PlacarPrevisao = new PlacarPrevisao(null),
   ) {}
 
   /** Dados consolidados da linha. Na 1ª vez, consulta a API e passa a acompanhá-la. */
@@ -423,14 +425,23 @@ export class LinhasService {
     onibus.sort((a, b) => a.id.localeCompare(b.id, 'pt-BR', { numeric: true }));
     linha.trechos.esquecerAntigos(agora);
 
+    const itinerariosFinais = itinerariosDto.map((it) => ({
+      ...it,
+      trechos: linha.trechos.velocidades(it.codigo, agora),
+    }));
+    // Placar: a previsão que o app faria agora, e as chegadas de verdade.
+    const observados: OnibusObservado[] = [];
+    for (const [id, v] of veiculos) {
+      const fix = this.velocidade.posicaoAtual(id);
+      if (fix) observados.push({ ...fix, id, itinerarios: v.itinerarios });
+    }
+    this.placar.observarLinha(itinerariosFinais, observados, agora);
+
     const snapshot: LinhaDto = {
       numero: linha.numero,
       atualizadoEm: new Date(agora).toISOString(),
       desatualizado: falhou,
-      itinerarios: itinerariosDto.map((it) => ({
-        ...it,
-        trechos: linha.trechos.velocidades(it.codigo, agora),
-      })),
+      itinerarios: itinerariosFinais,
       onibus,
     };
     linha.snapshot = snapshot;

@@ -11,7 +11,7 @@ export interface RegistroTrecho {
   itinerario: string;
   /** Identifica o traçado: se ele mudar, o histórico antigo não vale mais. */
   assinatura: string;
-  /** 0 = dia útil, 1 = sábado, 2 = domingo. */
+  /** 0 = dia útil, 1 = sábado, 2 = domingo ou feriado. */
   tipoDia: number;
   /** Faixa de horário do dia (0 = 00:00–00:30, com faixas de 30 min). */
   faixa: number;

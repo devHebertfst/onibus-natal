@@ -247,7 +247,9 @@ remontagem; se a API falhar, segue com o anterior e tenta de novo em 5 min.
 
 **Histórico por horário (Postgres/Neon).** Com `DATABASE_URL`, o backend
 guarda quanto os ônibus levam em cada trecho por tipo de dia (útil, sábado,
-domingo) e faixa de 30 min, no horário de Natal. Assim, uma linha recém-
+domingo) e faixa de 30 min, no horário de Natal. Feriados (nacionais, do RN
+e de Natal, com Carnaval, Sexta-feira Santa e Corpus Christi calculados pela
+Páscoa) contam como domingo; datas a mais vão em `FERIADOS_EXTRA`. Assim, uma linha recém-
 aberta (ou o servidor recém-acordado) já começa com o ritmo típico daquele
 horário em vez de 18 km/h, e as medidas ao vivo vão tomando o lugar.
 - Grava em lote a cada 5 min (`HISTORICO_GRAVAR_MS`) e ao desligar; lê o
@@ -290,12 +292,27 @@ linhas, a partir do índice de paradas; ou liste os números (`33,85`).
 `COLETA=false` desliga. `/api/diagnostico` mostra em `coleta` as linhas e as
 rajadas, e em `transito` quantos pedaços de rua têm medida.
 
-**Medir a precisão.** `GET /api/diagnostico` mostra o atraso medido do GPS
-(mediana, p90, quanto está sendo descontado) e, por itinerário, quanto do
-traçado já tem velocidade medida (`trechos`: cobertura em % e média) e o
-estado do histórico no banco (`historico`). No app, `?debug=1` abre um
-painel com o erro do desenho a cada posição nova (metros, segundos e quanto
-fica atrás) e a diferença entre a nossa estimativa e a da Nubus.
+**Medir a precisão.** O backend mantém um placar da previsão de chegada
+contra a chegada real, para a nossa estimativa e para a da Nubus:
+- a cada atualização das linhas acompanhadas (e do coletor), calcula a
+  previsão que o app mostraria para as paradas à frente de cada ônibus e
+  guarda a feita a 2, 5, 10 e 15 min da chegada;
+- a previsão da Nubus entra quando alguém (ou a amostragem de GPS) consulta
+  uma parada;
+- quando o ônibus passa pela parada (interpolando entre as duas posições ao
+  redor dela), o erro de cada previsão vai para o placar.
+
+`GET /api/diagnostico` mostra em `placar`, por antecedência: quantas
+chegadas, erro médio, mediana, p90 e viés em minutos (viés > 0: previu mais
+tarde do que o ônibus chegou), e em `comparacao` a % de vezes em que a nossa
+errou menos que a da Nubus na mesma chegada. O placar perde metade do peso a
+cada 7 dias (mostra o desempenho atual) e fica guardado no banco.
+
+O diagnóstico também mostra o atraso medido do GPS (mediana, p90, quanto
+está sendo descontado), por itinerário quanto do traçado já tem velocidade
+medida (`trechos`) e o estado do histórico no banco (`historico`). No app,
+`?debug=1` abre um painel com o erro do desenho a cada posição nova e a
+diferença entre a nossa estimativa e a da Nubus.
 
 **Proteção da API de origem.** As consultas por cliente nunca chegam à API:
 requisições simultâneas compartilham a mesma consulta. O backend acompanha
