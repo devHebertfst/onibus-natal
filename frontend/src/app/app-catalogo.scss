@@ -148,9 +148,18 @@
   }
 }
 
+/* O ponto escolhido vem antes de tudo: é o que a gaveta baixa mostra. */
+.ponto-escolhido,
 .paradas-da-linha-conteudo {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.ponto-escolhido {
+  margin-bottom: 8px;
+}
+
+.paradas-da-linha-conteudo {
   padding-top: 10px;
 }

@@ -172,6 +172,63 @@
         <p class="carregando" role="status">Abrindo a linha {{ numero() }}…</p>
       }
       @if (linha(); as l) {
+        <!-- 1. A resposta: o ponto do passageiro, antes de tudo (é o que a gaveta baixa mostra) -->
+        @if (ponto(); as p) {
+          <div class="ponto-escolhido">
+            <app-placa [nome]="p.nome" [sentidos]="sentidosPlaca()" [salvo]="ehMeuPonto()">
+              <button acao type="button" class="trocar" (click)="trocarPonto()">Trocar</button>
+            </app-placa>
+            <p class="nota">
+              @if (idadeS() !== null) {
+                <b>Posições de há {{ idadeS() }} s.</b>
+              }
+              @switch (fontePlaca()) {
+                @case ('nubus') {
+                  Tempo previsto pela Nubus, com o GPS dos ônibus.
+                }
+                @case ('misto') {
+                  @if (velocidadeMedida()) {
+                    Tempo previsto pela Nubus; onde ela não respondeu, estimado pelo ritmo recente
+                    dos ônibus da linha em cada trecho.
+                  } @else {
+                    Tempo previsto pela Nubus; onde ela não respondeu, estimado pela distância a ~18
+                    km/h.
+                  }
+                }
+                @default {
+                  @if (velocidadeMedida()) {
+                    Tempo estimado pelo ritmo dos ônibus da linha em cada trecho até o ponto.
+                  } @else {
+                    Tempo estimado pela distância até o ponto, a ~18 km/h.
+                  }
+                }
+              }
+              @if (l.desatualizado) {
+                <span class="adv"
+                  >O servidor não conseguiu atualizar; as posições podem estar velhas.</span
+                >
+              }
+            </p>
+            @if (ehMeuPonto()) {
+              <button
+                type="button"
+                data-ancora
+                class="botao secundario largo"
+                (click)="alternarMeuPonto()"
+              >
+                Esquecer este ponto
+              </button>
+            } @else {
+              <button type="button" data-ancora class="botao largo" (click)="alternarMeuPonto()">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 21s-6-5.3-6-11a6 6 0 0 1 12 0c0 5.7-6 11-6 11Z" />
+                  <circle cx="12" cy="10" r="2.2" />
+                </svg>
+                Salvar como meu ponto
+              </button>
+            }
+          </div>
+        }
         <details
           #paradasDaLinha
           class="paradas-da-linha"
@@ -183,61 +240,7 @@
             }}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
           </summary>
           <div class="paradas-da-linha-conteudo">
-            <!-- 1. A resposta: o ponto do passageiro -->
-            @if (ponto(); as p) {
-              <app-placa [nome]="p.nome" [sentidos]="sentidosPlaca()" [salvo]="ehMeuPonto()">
-                <button acao type="button" class="trocar" (click)="trocarPonto()">Trocar</button>
-              </app-placa>
-              <p class="nota">
-                @if (idadeS() !== null) {
-                  <b>Posições de há {{ idadeS() }} s.</b>
-                }
-                @switch (fontePlaca()) {
-                  @case ('nubus') {
-                    Tempo previsto pela Nubus, com o GPS dos ônibus.
-                  }
-                  @case ('misto') {
-                    @if (velocidadeMedida()) {
-                      Tempo previsto pela Nubus; onde ela não respondeu, estimado pelo ritmo recente
-                      dos ônibus da linha em cada trecho.
-                    } @else {
-                      Tempo previsto pela Nubus; onde ela não respondeu, estimado pela distância a
-                      ~18 km/h.
-                    }
-                  }
-                  @default {
-                    @if (velocidadeMedida()) {
-                      Tempo estimado pelo ritmo dos ônibus da linha em cada trecho até o ponto.
-                    } @else {
-                      Tempo estimado pela distância até o ponto, a ~18 km/h.
-                    }
-                  }
-                }
-                @if (l.desatualizado) {
-                  <span class="adv"
-                    >O servidor não conseguiu atualizar; as posições podem estar velhas.</span
-                  >
-                }
-              </p>
-              @if (ehMeuPonto()) {
-                <button
-                  type="button"
-                  data-ancora
-                  class="botao secundario largo"
-                  (click)="alternarMeuPonto()"
-                >
-                  Esquecer este ponto
-                </button>
-              } @else {
-                <button type="button" data-ancora class="botao largo" (click)="alternarMeuPonto()">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 21s-6-5.3-6-11a6 6 0 0 1 12 0c0 5.7-6 11-6 11Z" />
-                    <circle cx="12" cy="10" r="2.2" />
-                  </svg>
-                  Salvar como meu ponto
-                </button>
-              }
-            } @else {
+            @if (!ponto()) {
               <section class="escolher" aria-labelledby="titulo-seu-ponto">
                 <h2 id="titulo-seu-ponto" tabindex="-1">Em qual ponto você está?</h2>
                 <button
