@@ -166,6 +166,9 @@
       />
     </section>
     <section class="pagina-menu" [hidden]="menuAtual() !== 'paradas'" aria-label="paradas">
+      @if (carregando() && !linha()) {
+        <p class="carregando" role="status">Abrindo a linha {{ numero() }}…</p>
+      }
       @if (linha(); as l) {
         <details
           #paradasDaLinha
