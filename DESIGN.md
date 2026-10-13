@@ -230,7 +230,7 @@ Paleta de sinalização: um laranja institucional dominante, dois sinais de aler
 - **Branco de Placa** (placa-texto) e **Branco Gelo de Placa** (placa-texto-2): letra e filete sobre o laranja; o segundo, para detalhes secundários dentro da placa e para a idade do dado no topo.
 
 ### Secondary
-- **Amarelo Advertência** (adv) com **Preto de Placa** (adv-texto): estado "atrasado"/"reconectando" no topo, aviso de localização, nota de dado velho do servidor, favorita ativa e seleção de texto (selecao). Nunca aparece sem o preto por cima.
+- **Amarelo Advertência** (adv) com **Preto de Placa** (adv-texto): estado "atrasado"/"reconectando" no topo, aviso de localização, nota de dado velho do servidor, favorita ativa e seleção de texto (selecao). Nunca aparece sem o preto por cima. Exceção: o corpo do ônibus no mapa, amarelo com teto branco, como o ônibus da rua (o contorno é a cor do sentido).
 
 ### Tertiary
 - **Vermelho Regulamentação** (reg) sobre **Rosa de Erro** (reg-fundo): só para erro, como borda de 2px e anel de 12px na frente da mensagem. À noite vira um vermelho mais claro (reg-noite) sobre fundo vinho (reg-fundo-noite) para manter o contraste.
@@ -372,7 +372,7 @@ A peça que define o produto: uma placa de indicação com o ponto do passageiro
 - **Movimento:** `transform` em 0,32s com cubic-bezier(0.22, 1, 0.36, 1); os controles do mapa acompanham na mesma curva.
 
 ### Marcadores do mapa
-- **Ônibus:** quadrado na cor do sentido com seta branca no rumo. Sem rótulo, para não se atropelarem; o ônibus seguido pela placa ganha plaquinha laranja com o tempo ("6 min", "chegando") e o selecionado, plaquinha invertida com número e velocidade. Selecionado: cresce 1,2× e ganha anel de asfalto de 3px. A cor vem da mesma regra da lista: sentido inferido ou, sem ele, o único itinerário da API.
+- **Ônibus:** visto de cima (22×44px), amarelo (Amarelo Advertência) com teto branco, contorno de 3px na cor do sentido, para-brisa escuro na frente e sombra; gira inteiro com o rumo. Antes de o rumo ser conhecido, bolinha amarela de 22px com borda de 3px na cor do sentido. Sem rótulo, para não se atropelarem; o ônibus seguido pela placa ganha plaquinha laranja com o tempo ("6 min", "chegando") e o selecionado, plaquinha invertida com número e velocidade. Selecionado: cresce 1,2× e o contorno engrossa para 4px. A cor vem da mesma regra da lista: sentido inferido ou, sem ele, o único itinerário da API.
 - **Parada:** alvo de 44px com desenho pequeno no centro; abaixo do zoom 15 o desenho vira pontinho de 8px, para não cobrir o traçado. Ativa, mini placa laranja com filete.
 - **Passageiro:** ponto azul de 24px (Azul Localização, `#1a73e8`; `#4c8df6` à noite) com borda branca de 4px e halo azul que pulsa devagar (parado com movimento reduzido). É o único azul fora dos sentidos: o ponto azul do GPS é a convenção de todo app de mapa, e cor cheia mais tamanho maior o separam do círculo branco das paradas.
 - **Traçado:** linha cheia na cor do sentido sobre contorno 4px mais largo na cor do chão, como mapa de rota impresso. O primeiro sentido tem 8px e o segundo 3,5px por dentro dele (os demais, 2,5px): no tronco comum de ida e volta aparecem as duas cores.

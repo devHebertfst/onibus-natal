@@ -60,8 +60,18 @@ function esri(servico: string): L.TileLayer {
   );
 }
 
-const SETA_SVG =
-  '<svg class="seta" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 19 18 12 14.5 5 18Z"/></svg>';
+/**
+ * Ônibus visto de cima, com a frente para cima (0° = norte): gira inteiro com
+ * o rumo. Amarelo com teto branco e o contorno na cor do sentido; o
+ * para-brisa escuro marca a frente (para onde ele vai).
+ */
+const ONIBUS_SVG =
+  '<svg class="veiculo" viewBox="0 0 24 48" aria-hidden="true">' +
+  '<rect class="carroceria" x="2" y="2" width="20" height="44" rx="6"/>' +
+  '<rect class="teto" x="5.5" y="13" width="13" height="28" rx="3"/>' +
+  '<path d="M4.5 12.5V8.5Q12 3.5 19.5 8.5v4Z" fill="#14181b" fill-opacity=".85"/>' +
+  '<rect x="7" y="42" width="10" height="2.5" rx="1" fill="#14181b" fill-opacity=".45"/>' +
+  '</svg>';
 
 interface Marcador {
   marker: L.Marker;
@@ -480,7 +490,7 @@ export class Mapa {
   private criarMarcador(id: string, lat: number, lng: number): Marcador {
     const icone = L.divIcon({
       className: 'onibus-icone',
-      html: `<div class="onibus"><div class="corpo">${SETA_SVG}</div><div class="rotulo"></div></div>`,
+      html: `<div class="onibus"><div class="corpo">${ONIBUS_SVG}</div><div class="rotulo"></div></div>`,
       iconSize: [0, 0],
     });
     const marker = L.marker([lat, lng], {
@@ -506,7 +516,7 @@ export class Mapa {
       const el = m.marker.getElement();
       if (el !== m.el) {
         m.el = el;
-        m.seta = el?.querySelector<SVGElement>('.seta');
+        m.seta = el?.querySelector<SVGElement>('.veiculo');
         this.atualizarRotulo(id, m);
         m.ultimoRumo = null;
         m.ultimaCor = '';

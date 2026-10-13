@@ -10,18 +10,21 @@
 
 /* Os marcadores são criados pelo Leaflet fora do template: estilos globais. */
 :host ::ng-deep {
-  /* ---- ônibus: plaquinha na cor do sentido, com seta no rumo ---- */
+  /* ---- ônibus: visto de cima, na cor do sentido, girando no rumo ---- */
   .onibus-icone {
     --cor: #6b7378;
+    /* Ônibus amarelo e branco; o sentido vai no contorno (--cor). */
+    --onibus: #ffc20e;
     background: none;
     border: none;
 
     &.selecionado {
       .corpo {
         transform: scale(1.2);
-        box-shadow:
-          0 0 0 3px var(--texto),
-          0 2px 6px rgb(0 0 0 / 35%);
+      }
+
+      .carroceria {
+        stroke-width: 4;
       }
 
       .rotulo {
@@ -31,7 +34,7 @@
       }
     }
 
-    &.com-rumo .seta {
+    &.com-rumo .veiculo {
       opacity: 1;
     }
 
@@ -54,29 +57,26 @@
 
   .corpo {
     position: absolute;
-    left: -14px;
-    top: -14px;
+    left: -24px;
+    top: -24px;
     display: grid;
     place-items: center;
-    width: 28px;
-    height: 28px;
-    box-sizing: border-box;
-    border: 2px solid #fff;
-    border-radius: 7px;
-    background: var(--cor);
-    box-shadow: 0 1px 4px rgb(0 0 0 / 35%);
-    transition:
-      background 0.3s,
-      transform 0.2s;
+    width: 48px;
+    height: 48px;
+    transition: transform 0.2s;
 
-    /* Sem rumo ainda: um ponto branco no lugar da seta. */
+    /* Sem rumo ainda: bolinha na cor do sentido, com um ponto branco. */
     &::after {
       content: '';
       position: absolute;
-      width: 6px;
-      height: 6px;
+      width: 22px;
+      height: 22px;
+      box-sizing: border-box;
+      border: 3px solid var(--cor);
       border-radius: 50%;
-      background: #fff;
+      background: var(--onibus);
+      box-shadow: 0 1px 4px rgb(0 0 0 / 35%);
+      transition: border-color 0.3s;
     }
   }
 
@@ -84,17 +84,31 @@
     display: none;
   }
 
-  .seta {
-    width: 18px;
-    height: 18px;
-    fill: #fff;
+  /* O ônibus visto de cima: gira inteiro com o rumo (transform no loop). */
+  .veiculo {
+    width: 22px;
+    height: 44px;
+    overflow: visible;
     opacity: 0;
+    filter: drop-shadow(0 2px 2px rgb(0 0 0 / 40%));
+    transition: opacity 0.2s;
+  }
+
+  .carroceria {
+    fill: var(--onibus);
+    stroke: var(--cor);
+    stroke-width: 3;
+    transition: stroke 0.3s;
+  }
+
+  .teto {
+    fill: #fff;
   }
 
   .rotulo {
     display: none;
     position: absolute;
-    left: 18px;
+    left: 22px;
     top: -12px;
     padding: 4px 6px;
     border: 1px solid var(--linha-forte);
