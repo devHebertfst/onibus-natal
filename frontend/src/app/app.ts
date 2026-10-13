@@ -535,10 +535,14 @@ export class App {
     else if (params.get('painel') === 'favoritas') this.abrirMenu('favoritas');
   }
 
-  protected acompanhar(valor: string): void {
+  /**
+   * Abre a linha. `menu`: a tela que fica aberta enquanto ela carrega; vinda
+   * de uma parada, segue em Paradas e vai direto para o ponto.
+   */
+  protected acompanhar(valor: string, menu: 'linhas' | 'paradas' = 'linhas'): void {
     const numero = valor.trim().toUpperCase();
     if (!numero) return;
-    this.menuAtual.set('linhas');
+    this.menuAtual.set(menu);
     this.painelAberto.set(true);
     this.modoMapa.set('linha');
     this.planejador()?.pausarSelecao();
@@ -550,7 +554,7 @@ export class App {
     this.assinatura?.unsubscribe();
     this.numero.set(numero);
     // Mantém a lista aberta durante a consulta; os primeiros dados fecham o painel.
-    this.gaveta.set('alta');
+    if (menu === 'linhas') this.gaveta.set('alta');
     this.dados.set(null);
     this.erro.set(null);
     this.status.set(null);
@@ -589,6 +593,8 @@ export class App {
           this.carregando.set(false);
           this.erro.set(a.mensagem);
           if (a.fatal) {
+            // O erro aparece na tela de linhas, junto do campo para corrigir.
+            if (this.menuAtual() !== 'linhas') this.abrirMenu('linhas');
             // Mantém o que foi digitado no campo para o passageiro corrigir.
             this.assinatura?.unsubscribe();
             this.numero.set(null);
@@ -930,16 +936,19 @@ export class App {
     });
   }
 
-  /** Abre a linha já com o ponto escolhido (vindo da lista "perto de você"). */
+  /**
+   * Abre a linha já com o ponto escolhido (vindo de uma parada do mapa ou da
+   * lista "perto de você"), sem passar pela tela de linhas.
+   */
   protected abrirNaParada(numero: string, codigoParada: string): void {
     if (numero === this.numero() && this.linha()) {
-      this.abrirMenu('linhas');
       const ponto = acharPonto(this.pontos(), codigoParada);
       if (ponto) this.escolherPonto(ponto.chave);
+      else this.abrirMenu('paradas');
       return;
     }
     this.paradaPendente = codigoParada;
-    this.acompanhar(numero);
+    this.acompanhar(numero, 'paradas');
   }
 
   /** Toque numa parada do mapa: escolhe o ponto da linha ou, sem linha, mostra a parada na lista. */
