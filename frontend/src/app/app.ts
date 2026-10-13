@@ -98,15 +98,17 @@ export class App {
   protected readonly iconeMenu = computed(
     () => MENUS.find((m) => m.id === this.menuAtual())!.icone,
   );
-  protected readonly descricaoMenu = computed(
-    () =>
-      ({
-        linhas: 'Escolha uma linha e acompanhe os ônibus',
-        paradas: 'Paradas próximas e as linhas que passam por elas',
-        trajetos: 'A pé e de ônibus · Natal',
-        favoritas: 'Suas linhas de todo dia',
-        ajustes: 'Mapa e informações do app',
-      })[this.menuAtual()],
+  protected readonly descricaoMenu = computed(() =>
+    // Com a placa do ponto aberta, a descrição só ocuparia espaço do mapa.
+    this.menuAtual() === 'paradas' && this.ponto()
+      ? ''
+      : {
+          linhas: 'Escolha uma linha e acompanhe os ônibus',
+          paradas: 'Paradas próximas e as linhas que passam por elas',
+          trajetos: 'A pé e de ônibus · Natal',
+          favoritas: 'Suas linhas de todo dia',
+          ajustes: 'Mapa e informações do app',
+        }[this.menuAtual()],
   );
   protected readonly tituloMenu = computed(
     () => MENUS.find((m) => m.id === this.menuAtual())!.nome,
