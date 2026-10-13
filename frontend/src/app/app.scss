@@ -709,8 +709,8 @@ i {
 
     rect {
       fill: #ffc20e;
-      stroke: #1b1f22;
-      stroke-width: 2;
+      stroke: var(--texto-2);
+      stroke-width: 3;
     }
 
     .teto {

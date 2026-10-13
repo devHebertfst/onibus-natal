@@ -62,14 +62,13 @@ function esri(servico: string): L.TileLayer {
 
 /**
  * Ônibus visto de cima, com a frente para cima (0° = norte): gira inteiro com
- * o rumo. Amarelo com teto branco; a faixa no meio do teto tem a cor do
- * sentido, e o para-brisa escuro marca a frente (para onde ele vai).
+ * o rumo. Amarelo com teto branco e o contorno na cor do sentido; o
+ * para-brisa escuro marca a frente (para onde ele vai).
  */
 const ONIBUS_SVG =
   '<svg class="veiculo" viewBox="0 0 24 48" aria-hidden="true">' +
   '<rect class="carroceria" x="2" y="2" width="20" height="44" rx="6"/>' +
   '<rect class="teto" x="5.5" y="13" width="13" height="28" rx="3"/>' +
-  '<rect class="faixa" x="9.5" y="13" width="5" height="28"/>' +
   '<path d="M4.5 12.5V8.5Q12 3.5 19.5 8.5v4Z" fill="#14181b" fill-opacity=".85"/>' +
   '<rect x="7" y="42" width="10" height="2.5" rx="1" fill="#14181b" fill-opacity=".45"/>' +
   '</svg>';

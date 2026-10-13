@@ -13,9 +13,8 @@
   /* ---- ônibus: visto de cima, na cor do sentido, girando no rumo ---- */
   .onibus-icone {
     --cor: #6b7378;
-    /* Ônibus amarelo e branco; o sentido vai na faixa do teto (--cor). */
+    /* Ônibus amarelo e branco; o sentido vai no contorno (--cor). */
     --onibus: #ffc20e;
-    --contorno-onibus: #1b1f22;
     background: none;
     border: none;
 
@@ -73,11 +72,11 @@
       width: 22px;
       height: 22px;
       box-sizing: border-box;
-      border: 2px solid var(--contorno-onibus);
+      border: 3px solid var(--cor);
       border-radius: 50%;
-      background: radial-gradient(circle, var(--cor) 0 4px, transparent 4.5px) var(--onibus);
+      background: var(--onibus);
       box-shadow: 0 1px 4px rgb(0 0 0 / 35%);
-      transition: background-color 0.3s;
+      transition: border-color 0.3s;
     }
   }
 
@@ -97,17 +96,13 @@
 
   .carroceria {
     fill: var(--onibus);
-    stroke: var(--contorno-onibus);
-    stroke-width: 2;
+    stroke: var(--cor);
+    stroke-width: 3;
+    transition: stroke 0.3s;
   }
 
   .teto {
     fill: #fff;
-  }
-
-  .faixa {
-    fill: var(--cor);
-    transition: fill 0.3s;
   }
 
   .rotulo {
