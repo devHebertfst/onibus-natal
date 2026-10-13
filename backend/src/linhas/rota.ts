@@ -91,4 +91,41 @@ export class RotaMetros {
     }
     return escolhido;
   }
+
+  /** Ponto a `s` metros do início do traçado. */
+  pontoEm(s: number): LatLng {
+    const i = this.segmentoEm(s);
+    const ini = this.acumulado[i];
+    const len = this.acumulado[i + 1] - ini;
+    const t =
+      len > 0 ? (Math.max(0, Math.min(this.comprimento, s)) - ini) / len : 0;
+    return {
+      lat:
+        this.lat0 +
+        (this.y[i] + t * (this.y[i + 1] - this.y[i])) / METROS_POR_GRAU,
+      lng: this.lng0 + (this.x[i] + t * (this.x[i + 1] - this.x[i])) / this.kx,
+    };
+  }
+
+  /** Rumo em graus (0 = norte, sentido horário) no ponto `s`. */
+  rumoEm(s: number): number {
+    const i = this.segmentoEm(s);
+    const graus =
+      (Math.atan2(this.x[i + 1] - this.x[i], this.y[i + 1] - this.y[i]) * 180) /
+      Math.PI;
+    return (graus + 360) % 360;
+  }
+
+  /** Índice do segmento que contém `s` (busca binária). */
+  private segmentoEm(s: number): number {
+    const v = Math.max(0, Math.min(this.comprimento, s));
+    let lo = 0;
+    let hi = Math.max(0, this.acumulado.length - 2);
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (this.acumulado[mid] <= v) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo;
+  }
 }

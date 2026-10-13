@@ -21,7 +21,7 @@ npm run test:e2e      # teste HTTP com a API externa simulada
 | `NUBUS_CIDADE`     | `ntl`                                          | Cidade                                      |
 | `POLL_INTERVAL_MS` | `15000`                                        | Intervalo do loop de atualização            |
 | `SSE_PING_MS`      | `20000`                                        | Intervalo do `: ping` no stream SSE         |
-| `LINHA_INATIVA_MS` | `1800000`                                      | Para de acompanhar linha sem acessos        |
+| `LINHA_INATIVA_MS` | `300000`                                       | Para de acompanhar linha sem acessos        |
 | `MAX_LINHAS`       | `40`                                           | Máximo de linhas acompanhadas               |
 | `NUBUS_TIMEOUT_MS` | `10000`                                        | Timeout das consultas externas              |
 | `PREVISAO_TTL_MS` | `15000`                                        | Cache da previsão de chegada                |
@@ -31,6 +31,11 @@ npm run test:e2e      # teste HTTP com a API externa simulada
 | `AMOSTRA_GPS`     | `true`                                         | `false` desliga a amostragem da hora do GPS |
 | `DATABASE_URL`    | (nenhum)                                       | Postgres (Neon): índice de paradas, catálogo de linhas e histórico de velocidade; sem ele, só memória |
 | `HISTORICO_GRAVAR_MS` | `300000`                                   | Intervalo da gravação do histórico em lote  |
+| `COLETA`          | `true`                                         | `false` desliga o coletor de troncais       |
+| `COLETA_LINHAS`   | `auto`                                         | Troncais do coletor: `auto` ou `33,85,...`  |
+| `COLETA_QUANTAS`  | `5`                                            | Quantas troncais no modo `auto`             |
+| `COLETA_HORAS`    | `6-9,16-19`                                    | Faixas de horário de Natal das rajadas      |
+| `COLETA_INTERVALO_MS` | `900000`                                   | Intervalo entre rajadas                     |
 | `CORS_ORIGIN`      | (qualquer)                                     | Origens permitidas, separadas por vírgula   |
 
 Os endpoints de previsão oficial, paradas próximas e planejamento A→B estão

@@ -27,6 +27,7 @@ import {
 import type { ItinerarioDto, LinhaDto, OnibusDto } from './linha.dto.js';
 import { RastreadorVelocidade } from './velocidade.js';
 import { VelocidadeTrechos } from './trechos.js';
+import { TransitoCidade } from './transito.js';
 import { RelogioGps } from '../nubus/relogio-gps.js';
 import { HistoricoTrechos } from '../historico/historico-trechos.js';
 
@@ -58,6 +59,11 @@ interface LinhaAcompanhada {
   emAndamento?: Promise<LinhaDto>;
   /** Velocidade por trecho, aprendida com os ônibus desta linha (e o histórico). */
   trechos: VelocidadeTrechos;
+  /**
+   * Só o coletor lê esta linha (ninguém a abriu): fica fora do ciclo de 15 s
+   * e da amostragem de GPS, e não expira.
+   */
+  somenteColeta?: boolean;
 }
 
 // Com ponto por causa de linhas como a "745.1".
@@ -87,6 +93,7 @@ export class LinhasService {
     private readonly nubus: NubusClient,
     private readonly relogio: RelogioGps = new RelogioGps(),
     private readonly historico: HistoricoTrechos = new HistoricoTrechos(null),
+    private readonly transito: TransitoCidade = new TransitoCidade(),
   ) {}
 
   /** Dados consolidados da linha. Na 1ª vez, consulta a API e passa a acompanhá-la. */
@@ -120,16 +127,15 @@ export class LinhasService {
 
   /** Valida o número e passa a acompanhar a linha (se ainda não estiver). */
   private registrar(numeroBruto: string): LinhaAcompanhada {
-    // "098" e "98" são a mesma linha: uma só entrada no cache.
-    const numero = numeroBruto
-      .trim()
-      .toUpperCase()
-      .replace(/^0+(?=\d)/, '');
-    if (!NUMERO_VALIDO.test(numero)) {
-      throw new BadRequestException('Número de linha inválido');
-    }
-
+    const numero = normalizarNumero(numeroBruto);
     let linha = this.linhas.get(numero);
+    if (linha?.somenteColeta) {
+      // Alguém abriu uma linha do coletor: entra no ciclo normal, e com
+      // dados frescos (o último snapshot pode ter até 15 min).
+      linha.somenteColeta = false;
+      linha.snapshot = undefined;
+      linha.snapshotEm = undefined;
+    }
     if (!linha) {
       if (
         this.linhas.size >= config.maxLinhasAcompanhadas &&
@@ -139,16 +145,45 @@ export class LinhasService {
           'Muitas linhas acompanhadas no momento, tente novamente em instantes',
         );
       }
-      linha = {
-        numero,
-        ultimoAcesso: Date.now(),
-        assinantes: 0,
-        trechos: new VelocidadeTrechos(config.trechos, this.historico),
-      };
+      linha = this.nova(numero);
       this.linhas.set(numero, linha);
     }
     linha.ultimoAcesso = Date.now();
     return linha;
+  }
+
+  private nova(numero: string, somenteColeta = false): LinhaAcompanhada {
+    return {
+      numero,
+      ultimoAcesso: Date.now(),
+      assinantes: 0,
+      somenteColeta,
+      trechos: new VelocidadeTrechos(config.trechos, this.historico, {
+        cidade: this.transito,
+        linha: numero,
+      }),
+    };
+  }
+
+  /**
+   * Uma leitura da linha para o coletor de troncais, sem contar como acesso.
+   * Se alguém está com ela aberta, não faz nada: o ciclo normal já mede.
+   */
+  async coletar(numeroBruto: string): Promise<void> {
+    const numero = normalizarNumero(numeroBruto);
+    let linha = this.linhas.get(numero);
+    if (linha && !linha.somenteColeta) return;
+    if (!linha) {
+      if (this.linhas.size >= config.maxLinhasAcompanhadas) return;
+      linha = this.nova(numero, true);
+      this.linhas.set(numero, linha);
+    }
+    try {
+      await this.atualizar(linha);
+    } catch (e) {
+      if (!linha.snapshot) this.linhas.delete(numero);
+      throw e;
+    }
   }
 
   private async snapshotDe(linha: LinhaAcompanhada): Promise<LinhaDto> {
@@ -185,7 +220,7 @@ export class LinhasService {
    */
   prontas(): { snapshot: LinhaDto; itinerarios: ItinerarioRef[] }[] {
     return [...this.linhas.values()].flatMap((l) =>
-      l.snapshot && l.itinerarios
+      l.snapshot && l.itinerarios && !l.somenteColeta
         ? [{ snapshot: l.snapshot, itinerarios: l.itinerarios.lista }]
         : [],
     );
@@ -223,6 +258,7 @@ export class LinhasService {
       const agora = Date.now();
       const pendentes: LinhaAcompanhada[] = [];
       for (const linha of this.linhas.values()) {
+        if (linha.somenteColeta) continue; // quem lê é o coletor
         if (linha.assinantes > 0) linha.ultimoAcesso = agora;
         if (agora - linha.ultimoAcesso > config.linhaInativaMs) {
           this.linhas.delete(linha.numero);
@@ -251,6 +287,7 @@ export class LinhasService {
         }
       });
       this.velocidade.esquecerAntigos(Date.now());
+      this.transito.esquecerAntigos(Date.now());
     } finally {
       this.loopRodando = false;
     }
@@ -363,10 +400,13 @@ export class LinhasService {
         if (medido !== undefined) this.relogio.registrarAtraso(medido);
       }
       // Os trechos andam uma posição atrás, com a hora já corrigida pelo GPS.
-      const anterior = this.velocidade.posicaoAnterior(id);
-      if (anterior) {
+      // No coletor não há posição seguinte nem hora do GPS: vai a atual.
+      const medida = linha.somenteColeta
+        ? this.velocidade.posicaoAtual(id)
+        : this.velocidade.posicaoAnterior(id);
+      if (medida) {
         for (const codigo of v.itinerarios) {
-          linha.trechos.observar(codigo, id, anterior, anterior.t);
+          linha.trechos.observar(codigo, id, medida, medida.t);
         }
       }
       onibus.push({
@@ -436,6 +476,18 @@ export class LinhasService {
     linha.itinerarios = { lista, buscadoEm: Date.now() };
     return lista;
   }
+}
+
+/** "098" e "98" são a mesma linha: uma só entrada no cache. */
+function normalizarNumero(numeroBruto: string): string {
+  const numero = numeroBruto
+    .trim()
+    .toUpperCase()
+    .replace(/^0+(?=\d)/, '');
+  if (!NUMERO_VALIDO.test(numero)) {
+    throw new BadRequestException('Número de linha inválido');
+  }
+  return numero;
 }
 
 /**

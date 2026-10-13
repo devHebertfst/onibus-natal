@@ -4,7 +4,9 @@ import {
   type ResumoHistorico,
 } from '../historico/historico-trechos.js';
 import { RelogioGps, type ResumoAtraso } from '../nubus/relogio-gps.js';
+import { ColetorTroncais, type ResumoColeta } from './coletor.js';
 import { LinhasService, type ResumoTrechos } from './linhas.service.js';
+import { TransitoCidade, type ResumoTransito } from './transito.js';
 
 /**
  * Números para avaliar a precisão com a API real: quanto as posições chegam
@@ -18,6 +20,8 @@ export class DiagnosticoController {
     private readonly relogio: RelogioGps,
     private readonly linhas: LinhasService,
     private readonly historico: HistoricoTrechos,
+    private readonly transito: TransitoCidade,
+    private readonly coletor: ColetorTroncais,
   ) {}
 
   @Get()
@@ -26,12 +30,16 @@ export class DiagnosticoController {
     linhasAcompanhadas: number;
     trechos: ResumoTrechos[];
     historico: ResumoHistorico;
+    transito: ResumoTransito;
+    coleta: ResumoColeta;
   } {
     return {
       atrasoGps: this.relogio.resumo(),
       linhasAcompanhadas: this.linhas.acompanhadas().length,
       trechos: this.linhas.resumoTrechos(),
       historico: this.historico.resumo(),
+      transito: this.transito.resumo(),
+      coleta: this.coletor.resumo(),
     };
   }
 }
