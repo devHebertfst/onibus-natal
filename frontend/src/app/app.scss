@@ -708,9 +708,14 @@ i {
     filter: drop-shadow(0 1px 1px rgb(0 0 0 / 30%));
 
     rect {
-      fill: var(--texto-2);
-      stroke: #fff;
-      stroke-width: 2.5;
+      fill: #ffc20e;
+      stroke: #1b1f22;
+      stroke-width: 2;
+    }
+
+    .teto {
+      fill: #fff;
+      stroke: none;
     }
 
     path {
