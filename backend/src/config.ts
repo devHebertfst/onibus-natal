@@ -139,7 +139,7 @@ export const config = {
     ativa: process.env.COLETA !== 'false' && !process.env.VITEST,
     linhas: process.env.COLETA_LINHAS ?? 'auto',
     /** Quantas troncais no modo automático. */
-    quantasAuto: num(process.env.COLETA_QUANTAS, 5),
+    quantasAuto: num(process.env.COLETA_QUANTAS, 10),
     /** Faixas de horário de Natal, "início-fim" em horas (fim exclusivo). */
     horas: process.env.COLETA_HORAS ?? '6-9,16-19',
     intervaloMs: num(process.env.COLETA_INTERVALO_MS, 15 * 60_000),

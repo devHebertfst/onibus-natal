@@ -103,6 +103,8 @@ interface Itinerario {
  */
 export class VelocidadeTrechos {
   private readonly itinerarios = new Map<string, Itinerario>();
+  /** Percursos medidos desde que a linha começou a ser acompanhada. */
+  private medidas = 0;
 
   constructor(
     private readonly p: ParametrosTrechos = config.trechos,
@@ -199,6 +201,12 @@ export class VelocidadeTrechos {
       ? this.historico?.tipico(codigo, it.assinatura, t)
       : undefined;
     this.repartir(codigo, it, anterior.s, proj.s, dt, t, tipico);
+    this.medidas++;
+  }
+
+  /** Quantos percursos (pares de posições) já viraram velocidade. */
+  get totalMedidas(): number {
+    return this.medidas;
   }
 
   /** Velocidades atuais do itinerário, ou `undefined` se ele não é conhecido. */

@@ -284,13 +284,18 @@ as linhas abertas (e o coletor) já leem. Precisa do histórico (banco).
 pouco uso, o coletor lê algumas linhas troncais em rajadas: a cada 15 min,
 nos horários de `COLETA_HORAS` (padrão `6-9,16-19`, pico), duas leituras com
 1 min entre elas, e para. Cada rajada custa 2 consultas por sentido de cada
-linha; com 5 troncais e o padrão, ~480 consultas por dia. Essas linhas
-ficam fora do ciclo de 15 s e da amostragem de GPS; se alguém abrir uma
-delas, ela entra no ciclo normal. `COLETA_LINHAS=auto` (padrão) escolhe as
-5 (`COLETA_QUANTAS`) que, juntas, mais cobrem ruas por onde passam outras
-linhas, a partir do índice de paradas; ou liste os números (`33,85`).
-`COLETA=false` desliga. `/api/diagnostico` mostra em `coleta` as linhas e as
-rajadas, e em `transito` quantos pedaços de rua têm medida.
+linha; com 10 troncais e o padrão, ~1.000 consultas por dia (mais um pouco
+nas linhas com 3 sentidos). Essas linhas ficam fora do ciclo de 15 s e da
+amostragem de GPS; se alguém abrir uma delas, ela entra no ciclo normal.
+`COLETA_LINHAS=auto` (padrão) escolhe as 10 (`COLETA_QUANTAS`) que, juntas,
+mais cobrem ruas por onde passam outras linhas, a partir do índice de
+paradas; ou liste os números (`33,85`). No automático, uma troncal que
+passa 2 rajadas seguidas sem medir nada (sem ônibus rodando naquele
+horário, como uma expressa fora do pico) é trocada pela próxima melhor; as
+trocadas voltam a concorrer na escolha do dia seguinte. Linhas listadas à
+mão nunca são trocadas. `COLETA=false` desliga. `/api/diagnostico` mostra
+em `coleta` as linhas, as trocadas (`descartadas`) e as rajadas, e em
+`transito` quantos pedaços de rua têm medida.
 
 **Medir a precisão.** O backend mantém um placar da previsão de chegada
 contra a chegada real, para a nossa estimativa e para a da Nubus:
