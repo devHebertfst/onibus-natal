@@ -48,6 +48,13 @@ export const config = {
   amostraGpsMs: num(process.env.AMOSTRA_GPS_MS, 60_000),
   amostrarGps: process.env.AMOSTRA_GPS !== 'false' && !process.env.VITEST,
 
+  /**
+   * Postgres (Neon) para o que vale guardar entre reinícios: índice de
+   * paradas, catálogo de linhas e histórico de velocidade. Sem ele, tudo
+   * fica só em memória e é remontado quando o servidor acorda.
+   */
+  databaseUrl: process.env.DATABASE_URL || undefined,
+
   /** Paradas da cidade e quais linhas passam em cada uma: muda pouco. */
   paradasTtlMs: num(process.env.PARADAS_TTL_MS, 24 * 60 * 60_000),
 
@@ -102,10 +109,9 @@ export const config = {
 
   /**
    * Histórico da velocidade por trecho, por tipo de dia e faixa de horário,
-   * num Postgres (Neon). Sem `DATABASE_URL`, fica tudo só em memória.
+   * no Postgres (`databaseUrl`).
    */
   historico: {
-    databaseUrl: process.env.DATABASE_URL || undefined,
     /** O que foi medido vai para o banco em lote, a cada intervalo. */
     gravarMs: num(process.env.HISTORICO_GRAVAR_MS, 5 * 60_000),
     /** O histórico de um itinerário é relido do banco depois disso. */

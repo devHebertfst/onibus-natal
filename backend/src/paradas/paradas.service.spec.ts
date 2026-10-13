@@ -3,6 +3,7 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
+import type { CachePersistente } from '../banco/cache-persistente.js';
 import { NubusClient } from '../nubus/nubus.client.js';
 import { CatalogoRotasService } from '../nubus/catalogo-rotas.service.js';
 import { ParadasService } from './paradas.service.js';
@@ -127,6 +128,42 @@ describe('ParadasService', () => {
     ]);
     await service.proximas(-5.9, -35.2);
     expect(client.listarParadas).toHaveBeenCalledTimes(1);
+  });
+
+  it('guarda o índice no banco: ao reiniciar, não consulta a API de novo', async () => {
+    // Banco de mentira, com ida e volta por JSON como o de verdade.
+    const salvo = new Map<string, string>();
+    const cache = {
+      ler: async (k: string) =>
+        salvo.has(k) ? JSON.parse(salvo.get(k)!) : undefined,
+      gravar: async (k: string, v: unknown) => {
+        salvo.set(k, JSON.stringify(v));
+      },
+    } as unknown as CachePersistente;
+
+    const client = fakeClient();
+    const nubus = client as unknown as NubusClient;
+    const antes = await new ParadasService(
+      nubus,
+      new CatalogoRotasService(nubus, cache),
+      undefined,
+      cache,
+    ).proximas(-5.8, -35.2);
+    await new Promise((r) => setTimeout(r, 0)); // gravações em segundo plano
+
+    const acordou = fakeClient();
+    const nubus2 = acordou as unknown as NubusClient;
+    const depois = await new ParadasService(
+      nubus2,
+      new CatalogoRotasService(nubus2, cache),
+      undefined,
+      cache,
+    ).proximas(-5.8, -35.2);
+
+    expect(depois).toEqual(antes);
+    expect(acordou.listarParadas).not.toHaveBeenCalled();
+    expect(acordou.pesquisarRotas).not.toHaveBeenCalled();
+    expect(acordou.paradasEspecifica).not.toHaveBeenCalled();
   });
 
   it('respeita o raio e recusa posição inválida', async () => {

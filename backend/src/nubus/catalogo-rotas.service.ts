@@ -1,4 +1,6 @@
 import { BadGatewayException, Injectable } from '@nestjs/common';
+import { CachePersistente } from '../banco/cache-persistente.js';
+import { ValorGuardado } from '../banco/valor-guardado.js';
 import { config } from '../config.js';
 import { emParalelo, numeroDaLinha } from '../linhas/linhas.service.js';
 import { NubusClient } from './nubus.client.js';
@@ -9,30 +11,30 @@ export interface LinhaCatalogo {
   descricoes: string[];
 }
 
-/** Compartilha a busca de rotas entre o catálogo de linhas e o índice de paradas. */
+/**
+ * Compartilha a busca de rotas entre o catálogo de linhas e o índice de
+ * paradas. São 10 consultas à API; o resultado fica guardado no banco, para
+ * o servidor não repeti-las toda vez que acorda.
+ */
 @Injectable()
 export class CatalogoRotasService {
-  private cache?: { em: number; rotas: NubusItinerario[] };
-  private consulta?: Promise<NubusItinerario[]>;
+  private readonly guardado: ValorGuardado<NubusItinerario[]>;
 
-  constructor(private readonly nubus: NubusClient) {}
+  constructor(
+    private readonly nubus: NubusClient,
+    cache: CachePersistente = new CachePersistente(null),
+  ) {
+    this.guardado = new ValorGuardado(cache, {
+      chave: 'catalogo-rotas:v1',
+      validadeMs: config.itinerariosTtlMs,
+      montar: () => this.consultar(),
+    });
+  }
 
   async rotas(): Promise<NubusItinerario[]> {
-    if (this.cache && Date.now() - this.cache.em < config.itinerariosTtlMs)
-      return this.cache.rotas;
-    if (this.consulta) return this.consulta;
-    this.consulta = this.consultar()
-      .then((rotas) => {
-        this.cache = { em: Date.now(), rotas };
-        return rotas;
-      })
-      .catch(() => {
-        throw new BadGatewayException('Catálogo de linhas indisponível');
-      })
-      .finally(() => {
-        this.consulta = undefined;
-      });
-    return this.consulta;
+    return this.guardado.obter().catch(() => {
+      throw new BadGatewayException('Catálogo de linhas indisponível');
+    });
   }
 
   async linhas(): Promise<LinhaCatalogo[]> {

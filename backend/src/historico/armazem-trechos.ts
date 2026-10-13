@@ -1,14 +1,10 @@
 /**
  * Onde o histórico da velocidade por trecho fica guardado: uma tabela no
- * Postgres (Neon em produção). Recebe qualquer coisa com `query(sql, params)`
- * — o `Pool` do `pg` ou, nos testes, o PGlite (Postgres em memória).
+ * Postgres (Neon em produção).
  */
-export interface Consulta {
-  query(
-    sql: string,
-    params?: unknown[],
-  ): Promise<{ rows: Record<string, unknown>[] }>;
-}
+import type { Consulta } from '../banco/banco.js';
+
+export type { Consulta };
 
 /** Percurso medido num trecho, num tipo de dia e faixa de horário. */
 export interface RegistroTrecho {
@@ -69,7 +65,6 @@ export class ArmazemTrechos {
   constructor(
     private readonly db: Consulta,
     private readonly meiaVidaMs: number,
-    private readonly encerrarConexao: () => Promise<void> = async () => {},
   ) {}
 
   /** Soma os registros ao que já existe (com o decaimento) num só comando. */
@@ -111,10 +106,6 @@ export class ArmazemTrechos {
       metros: Number(r.metros),
       segundos: Number(r.segundos),
     }));
-  }
-
-  encerrar(): Promise<void> {
-    return this.encerrarConexao();
   }
 
   private criarTabela(): Promise<void> {

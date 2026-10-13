@@ -10,9 +10,10 @@ const SEXTA_7H = Date.parse('2026-10-09T10:10:00Z');
 
 // Um Postgres em memória para o arquivo todo (subir um leva ~1 s).
 let db: PGlite;
-beforeAll(() => {
+beforeAll(async () => {
   db = new PGlite();
-});
+  await db.waitReady;
+}, 30_000);
 afterAll(() => db.close());
 
 async function bancoEmMemoria() {
