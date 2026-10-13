@@ -79,6 +79,8 @@ export class App {
   private timerAviso?: ReturnType<typeof setTimeout>;
   /** Parada pedida no link (`?parada=`), aplicada quando a linha chegar. */
   private paradaPendente: string | null = null;
+  /** Tela que ficou aberta enquanto a linha carregava (ver `acompanhar`). */
+  private menuAbertura: Menu = 'linhas';
 
   protected readonly numero = signal<string | null>(null);
   protected readonly dados = signal<DadosMapa | null>(null);
@@ -470,6 +472,9 @@ export class App {
         const ref = this.paradaPendente ?? this.fav.meuPonto(n);
         this.paradaPendente = null;
         const p = ref ? acharPonto(pontos, ref) : undefined;
+        // O ponto esperado não está na linha: mostra a linha no mapa.
+        if (ref && !p && this.painelAberto() && this.menuAtual() === this.menuAbertura)
+          this.fecharMenu();
         // Depois do mapa aplicar os dados, para enquadrar o ponto com o próximo ônibus.
         if (p) setTimeout(() => this.escolherPonto(p.chave));
       });
@@ -538,12 +543,14 @@ export class App {
   }
 
   /**
-   * Abre a linha. `menu`: a tela que fica aberta enquanto ela carrega; vinda
-   * de uma parada, segue em Paradas e vai direto para o ponto.
+   * Abre a linha. `menu`: a tela que fica aberta enquanto ela carrega (a de
+   * onde o passageiro veio: linhas, paradas, favoritas). Quando a linha
+   * chega, vai para o ponto (o pedido ou o "meu ponto") ou fecha o menu.
    */
-  protected acompanhar(valor: string, menu: 'linhas' | 'paradas' = 'linhas'): void {
+  protected acompanhar(valor: string, menu: Menu = 'linhas'): void {
     const numero = valor.trim().toUpperCase();
     if (!numero) return;
+    this.menuAbertura = menu;
     this.menuAtual.set(menu);
     this.painelAberto.set(true);
     this.modoMapa.set('linha');
@@ -588,7 +595,9 @@ export class App {
             // "Planalto / Praia do Meio" + "Planalto / Mae Luiza" → "Planalto · Praia do Meio · Mae Luiza"
             [...new Set(this.itinerarios().flatMap((it) => it.destino.split(' / ')))].join(' · '),
           );
-          if (abriuAgora && this.menuAtual() === 'linhas' && this.painelAberto()) this.fecharMenu();
+          const vaiParaPonto = !!(this.paradaPendente ?? this.fav.meuPonto(numero));
+          if (abriuAgora && !vaiParaPonto && this.menuAtual() === menu && this.painelAberto())
+            this.fecharMenu();
           break;
         }
         case 'erro':
