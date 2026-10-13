@@ -13,8 +13,9 @@
     <ng-content select="[acao]" />
   </div>
   <ul>
-    @for (l of linhas(); track l.itinerario) {
-      <li [style.--cor]="l.cor">
+    @for (l of linhas(); track l.itinerario; let primeiro = $first) {
+      <!-- A gaveta baixa vai até o 1º sentido; os outros, arrastando para cima. -->
+      <li [style.--cor]="l.cor" [attr.data-ancora]="primeiro ? '' : null">
         <div class="rumo">
           <svg
             class="seta"

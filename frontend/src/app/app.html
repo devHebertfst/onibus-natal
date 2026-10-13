@@ -105,7 +105,9 @@
     ></span>
     <div>
       <h2>{{ tituloMenu() }}</h2>
-      <p>{{ descricaoMenu() }}</p>
+      @if (descricaoMenu()) {
+        <p>{{ descricaoMenu() }}</p>
+      }
     </div>
     <button
       type="button"
