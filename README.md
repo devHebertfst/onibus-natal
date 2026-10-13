@@ -187,6 +187,13 @@ posição do ônibus vira um número `s` (metros desde o início do traçado).
   real (`erro`) é reduzida exponencialmente (τ = 2,5s). Assim o ônibus
   acelera ou freia até encostar na trajetória real, sem saltos. Em movimento,
   ele nunca anda de ré: se estiver adiantado, espera.
+- Perto das paradas o desenho freia: a partir de 60 m antes, reduz até 30%
+  da velocidade de cruzeiro e retoma nos 30 m seguintes. O cruzeiro é
+  ajustado para que, ao fim dos 60 s de extrapolação, o ônibus esteja no
+  mesmo lugar que estaria em velocidade constante (a média não muda, só o
+  formato do movimento). Como nem todo ônibus para em todo ponto, é freada e
+  não parada; e errar para trás é melhor que para frente: atrás, o desenho
+  só acelera um pouco para alcançar; à frente, teria de esperar parado.
 - O sentido (ida/volta) sai de duas posições reais consecutivas: vale o
   itinerário em que `s` aumentou. Na primeira posição, se houver ambiguidade
   (ida e volta na mesma rua), o ônibus fica parado na posição real até a

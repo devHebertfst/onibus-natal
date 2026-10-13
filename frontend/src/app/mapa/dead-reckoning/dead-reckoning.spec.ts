@@ -30,6 +30,47 @@ describe('Rota', () => {
   });
 });
 
+describe('desaceleração nas paradas', () => {
+  const comParada = () => {
+    const r = new Rota('ida', reta);
+    r.definirParadas([{ lat: em(500)[0], lng: em(500)[1], ordem: 1 }]);
+    return r;
+  };
+
+  it('sem paradas, anda em velocidade constante', () => {
+    expect(ida.avancar(300, 100, 600)).toBe(400);
+  });
+
+  it('freia perto da parada e acelera longe dela, com a mesma média', () => {
+    const r = comParada();
+    // 10 m/s por 60 s a partir de 300 m: no fim, o mesmo lugar de antes
+    expect(r.avancar(300, 600, 600)).toBeCloseTo(900, 0);
+    // antes da parada vai mais rápido que a média...
+    expect(r.avancar(300, 100, 600)).toBeGreaterThan(400);
+
+    // ...e perto dela, bem mais devagar (segundo a segundo)
+    const posicoes = Array.from({ length: 61 }, (_, t) => r.avancar(300, 10 * t, 600));
+    const passo = (s: number) => {
+      const i = posicoes.findIndex((x) => x >= s);
+      return posicoes[i + 1] - posicoes[i];
+    };
+    expect(passo(350)).toBeGreaterThan(10);
+    expect(passo(497)).toBeLessThan(0.5 * passo(350));
+    // e nunca anda para trás
+    for (let i = 1; i < posicoes.length; i++)
+      expect(posicoes[i]).toBeGreaterThanOrEqual(posicoes[i - 1]);
+  });
+
+  it('no desenho, o ônibus chega ao mesmo ponto ao fim da extrapolação', () => {
+    const r = comParada();
+    const o = new OnibusAnimado('1');
+    o.atualizar(em(200), 36, 0, [r], 0);
+    o.atualizar(em(300), 36, 10_000, [r], 10_000);
+    for (let t = 10_000; t <= 70_000; t += 16) o.quadro(t);
+    expect(r.projetar(...latLng(o.quadro(70_000)!)).s).toBeCloseTo(900, -1);
+  });
+});
+
 describe('OnibusAnimado', () => {
   const kmh36 = 36; // 10 m/s
 

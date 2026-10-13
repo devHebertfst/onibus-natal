@@ -65,7 +65,11 @@ export class Frota {
     this.rotas = new Map(
       itinerarios
         .filter((i) => i.tracado.length >= 2)
-        .map((i) => [i.codigo, new Rota(i.codigo, i.tracado)]),
+        .map((i) => {
+          const rota = new Rota(i.codigo, i.tracado);
+          rota.definirParadas(i.paradas);
+          return [i.codigo, rota] as const;
+        }),
     );
     for (const o of this.onibus.values()) o.esquecerRota();
   }
