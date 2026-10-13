@@ -90,7 +90,7 @@ versão 22 acompanha o Angular 22.
 
 `GET /api/linhas/:numero`: na primeira chamada, consulta a API externa e passa
 a acompanhar a linha. Nas seguintes, responde da memória. A linha deixa de ser
-acompanhada após 30 min sem acessos e sem conexões SSE.
+acompanhada após 5 min sem acessos e sem conexões SSE.
 
 ```jsonc
 {
@@ -268,6 +268,28 @@ dorme após ~15 min sem acessos, e dormindo ninguém coleta posições; um ping
 externo (UptimeRobot, cron-job.org) em `/api/linhas` a cada 10 min o mantém
 acordado.
 
+**Trânsito compartilhado entre linhas.** Linhas diferentes param em pontos
+diferentes, então a velocidade de uma não serve direto para outra. O que se
+compartilha é a razão "velocidade agora ÷ típica daquele trecho e horário"
+(do histórico), por pedaço de rua de ~150 m e por sentido (8 rumos). Se a 85
+está 40% mais lenta que o normal na Salgado Filho, a previsão da 33 ali
+também fica 40% mais lenta. Na velocidade de cada trecho vale, nesta ordem:
+a medida da própria linha, o típico ajustado pelo que as outras mediram nas
+mesmas ruas, o típico, a média. Não faz nenhuma consulta a mais: usa o que
+as linhas abertas (e o coletor) já leem. Precisa do histórico (banco).
+
+**Coletor por amostras.** Para o histórico e o trânsito crescerem mesmo com
+pouco uso, o coletor lê algumas linhas troncais em rajadas: a cada 15 min,
+nos horários de `COLETA_HORAS` (padrão `6-9,16-19`, pico), duas leituras com
+1 min entre elas, e para. Cada rajada custa 2 consultas por sentido de cada
+linha; com 5 troncais e o padrão, ~480 consultas por dia. Essas linhas
+ficam fora do ciclo de 15 s e da amostragem de GPS; se alguém abrir uma
+delas, ela entra no ciclo normal. `COLETA_LINHAS=auto` (padrão) escolhe as
+5 (`COLETA_QUANTAS`) que, juntas, mais cobrem ruas por onde passam outras
+linhas, a partir do índice de paradas; ou liste os números (`33,85`).
+`COLETA=false` desliga. `/api/diagnostico` mostra em `coleta` as linhas e as
+rajadas, e em `transito` quantos pedaços de rua têm medida.
+
 **Medir a precisão.** `GET /api/diagnostico` mostra o atraso medido do GPS
 (mediana, p90, quanto está sendo descontado) e, por itinerário, quanto do
 traçado já tem velocidade medida (`trechos`: cobertura em % e média) e o
@@ -281,10 +303,12 @@ no máximo 40 linhas (configurável), com até 4 em paralelo. Com o limite
 atingido, a linha sem conexões há mais tempo sem acesso dá lugar à nova. A
 lista de itinerários é cacheada por 6h.
 
-**Linhas "aquecidas".** Uma linha continua sendo acompanhada por 30 min
-depois do último acesso, para quem abri-la em seguida já receber velocidade
-e sentido prontos. Sem ninguém olhando, ela é atualizada a cada ~30s (o
-ritmo do GPS) em vez de 15s. "098" e "98" são a mesma entrada.
+**Linhas "aquecidas".** Uma linha continua sendo acompanhada por 5 min
+depois do último acesso, para quem fecha o app e volta logo já receber
+velocidade e sentido prontos. Sem ninguém olhando, ela é atualizada a cada
+~30s (o ritmo do GPS) em vez de 15s. Era 30 min; caiu para 5 porque esse
+"rabo" custava ~75% das consultas de cada visita e o ritmo dos trechos já
+fica guardado no banco. "098" e "98" são a mesma entrada.
 
 ## Formato real da API (conferido)
 

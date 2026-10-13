@@ -27,9 +27,10 @@ export const config = {
   ssePingMs: num(process.env.SSE_PING_MS, 20_000),
 
   /** Uma linha deixa de ser acompanhada se ninguém a pedir por esse tempo. */
-  // Tempo longo de propósito: quem abrir uma linha vista há pouco já recebe
-  // velocidade e sentido prontos, sem esperar o GPS mudar duas vezes.
-  linhaInativaMs: num(process.env.LINHA_INATIVA_MS, 30 * 60_000),
+  // Curto: quem fecha o app e volta logo ainda acha velocidade e sentido
+  // prontos, mas a linha não fica consultando a API por meia hora à toa (o
+  // ritmo de cada trecho já fica guardado no banco).
+  linhaInativaMs: num(process.env.LINHA_INATIVA_MS, 5 * 60_000),
 
   /** Proteção da API de origem: máximo de linhas acompanhadas ao mesmo tempo. */
   maxLinhasAcompanhadas: num(process.env.MAX_LINHAS, 40),
@@ -105,6 +106,45 @@ export const config = {
     janelaMs: 30 * 60_000,
     /** Fração do trecho já percorrida (com o peso) para a velocidade valer. */
     coberturaMin: 0.5,
+  },
+
+  /**
+   * Trânsito compartilhado entre linhas: quanto mais lento que o normal os
+   * ônibus estão em cada pedaço de rua (~150 m, por sentido). Uma linha
+   * aproveita o que as outras mediram nas ruas em comum.
+   */
+  transito: {
+    /** Lado de cada pedaço de rua, em graus (~150 m). */
+    celulaGraus: 0.00135,
+    /** A cada meia-vida, uma medida pesa metade (o trânsito muda). */
+    meiaVidaMs: 10 * 60_000,
+    /** Pedaço sem medida há mais que isso volta a ser desconhecido. */
+    janelaMs: 30 * 60_000,
+    /** Metros medidos (com o peso) para o fator valer. */
+    minimoM: 150,
+    /** Limites do fator (lento/rápido em relação ao normal). */
+    fatorMin: 0.25,
+    fatorMax: 2,
+  },
+
+  /**
+   * Coletor por amostras: em horários escolhidos, a cada 15 min, lê duas
+   * vezes (com 1 min entre elas) as linhas troncais, só o bastante para
+   * medir a velocidade, e para. Alimenta o histórico e o trânsito das
+   * outras linhas sem deixar nada sendo consultado direto.
+   * `COLETA=false` desliga; `COLETA_LINHAS` = "auto" (escolhe sozinho as
+   * que mais cobrem ruas em comum) ou números separados por vírgula.
+   */
+  coleta: {
+    ativa: process.env.COLETA !== 'false' && !process.env.VITEST,
+    linhas: process.env.COLETA_LINHAS ?? 'auto',
+    /** Quantas troncais no modo automático. */
+    quantasAuto: num(process.env.COLETA_QUANTAS, 5),
+    /** Faixas de horário de Natal, "início-fim" em horas (fim exclusivo). */
+    horas: process.env.COLETA_HORAS ?? '6-9,16-19',
+    intervaloMs: num(process.env.COLETA_INTERVALO_MS, 15 * 60_000),
+    /** Entre as duas leituras de cada rajada (o GPS muda a cada ~30 s). */
+    pausaMs: 60_000,
   },
 
   /**

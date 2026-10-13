@@ -1,6 +1,7 @@
 import { config } from '../config.js';
 import type { LatLng } from './geo.js';
 import type { TrechosDto } from './linha.dto.js';
+import { type Celula, celulasEntre } from './celulas.js';
 import { RotaMetros } from './rota.js';
 
 export type ParametrosTrechos = typeof config.trechos;
@@ -9,6 +10,25 @@ export type ParametrosTrechos = typeof config.trechos;
 export interface PercursoTipico {
   metros: number;
   segundos: number;
+}
+
+/**
+ * Trânsito compartilhado entre linhas (ver `TransitoCidade`): quanto mais
+ * lento que o normal os ônibus estão em cada pedaço de rua.
+ */
+export interface FonteTransito {
+  registrar(
+    celulas: Celula[],
+    linha: string,
+    razao: number,
+    metros: number,
+    t: number,
+  ): void;
+  fator(
+    celulas: Celula[],
+    linhaExcluida: string,
+    agora: number,
+  ): number | undefined;
 }
 
 /**
@@ -53,6 +73,8 @@ interface Itinerario {
   /** Instante a que `metros` e `segundos` de cada trecho se referem. */
   em: Float64Array;
   ultimas: Map<string, Passagem>;
+  /** Pedaços de rua por onde cada trecho passa (só com trânsito compartilhado). */
+  celulas: Celula[][];
 }
 
 /**
@@ -74,7 +96,10 @@ interface Itinerario {
  * (s diminui) e são ignorados.
  *
  * Com um `historico`, cada percurso também vai para ele, e os trechos sem
- * medida recente usam a velocidade típica daquele dia e horário.
+ * medida recente usam a velocidade típica daquele dia e horário. Com o
+ * `transito` da cidade, a linha conta às outras quanto está mais lenta (ou
+ * rápida) que o normal em cada rua, e ajusta o típico dos trechos dela pelo
+ * que as outras mediram nas ruas em comum.
  */
 export class VelocidadeTrechos {
   private readonly itinerarios = new Map<string, Itinerario>();
@@ -82,6 +107,7 @@ export class VelocidadeTrechos {
   constructor(
     private readonly p: ParametrosTrechos = config.trechos,
     private readonly historico?: FonteHistorico,
+    private readonly transito?: { cidade: FonteTransito; linha: string },
   ) {}
 
   /**
@@ -105,6 +131,15 @@ export class VelocidadeTrechos {
         segundos: new Float64Array(n),
         em: new Float64Array(n),
         ultimas: new Map(),
+        celulas: this.transito
+          ? Array.from({ length: n }, (_, k) =>
+              celulasEntre(
+                rota,
+                k * this.p.tamanhoM,
+                Math.min(rota.comprimento, (k + 1) * this.p.tamanhoM),
+              ),
+            )
+          : [],
       });
     }
     for (const codigo of this.itinerarios.keys()) {
@@ -159,7 +194,11 @@ export class VelocidadeTrechos {
     ) {
       return;
     }
-    this.repartir(codigo, it, anterior.s, proj.s, dt, t);
+    // O típico do horário, para dizer às outras linhas o quanto está fora dele.
+    const tipico = this.transito
+      ? this.historico?.tipico(codigo, it.assinatura, t)
+      : undefined;
+    this.repartir(codigo, it, anterior.s, proj.s, dt, t, tipico);
   }
 
   /** Velocidades atuais do itinerário, ou `undefined` se ele não é conhecido. */
@@ -167,48 +206,59 @@ export class VelocidadeTrechos {
     const it = this.itinerarios.get(codigo);
     if (!it) return undefined;
 
-    const kmh: (number | null)[] = [];
+    const vivo: (number | null)[] = [];
     let metros = 0;
     let segundos = 0;
     for (let k = 0; k < it.metros.length; k++) {
       const idade = agora - it.em[k];
       if (it.segundos[k] === 0 || idade > this.p.janelaMs) {
-        kmh.push(null);
+        vivo.push(null);
         continue;
       }
       const peso = this.peso(idade);
       metros += it.metros[k] * peso;
       segundos += it.segundos[k] * peso;
       const cobertura = (it.metros[k] * peso) / this.tamanhoDo(it, k);
-      kmh.push(
+      vivo.push(
         cobertura >= this.p.coberturaMin
           ? umaCasa((it.metros[k] / it.segundos[k]) * 3.6)
           : null,
       );
     }
     const minimoM = this.p.tamanhoM * this.p.coberturaMin;
-    let mediaKmh = media(metros, segundos, minimoM);
 
-    // Onde nenhum ônibus passou há pouco, vale o típico deste horário.
-    const tipico = this.historico?.tipico(codigo, it.assinatura, agora);
-    if (tipico) {
-      let metrosTipicos = 0;
-      let segundosTipicos = 0;
-      for (const [k, v] of tipico) {
-        if (k >= kmh.length || v.segundos <= 0) continue;
-        metrosTipicos += v.metros;
-        segundosTipicos += v.segundos;
-        if (
-          kmh[k] === null &&
-          v.metros / this.tamanhoDo(it, k) >= this.p.coberturaMin
-        ) {
-          kmh[k] = umaCasa((v.metros / v.segundos) * 3.6);
-        }
-      }
-      mediaKmh ??= media(metrosTipicos, segundosTipicos, minimoM);
+    // O típico deste dia e horário, trecho a trecho (do histórico).
+    const tipicoKmh: (number | null)[] = vivo.map(() => null);
+    let metrosTipicos = 0;
+    let segundosTipicos = 0;
+    for (const [k, v] of this.historico?.tipico(codigo, it.assinatura, agora) ??
+      []) {
+      if (k >= vivo.length || v.segundos <= 0) continue;
+      metrosTipicos += v.metros;
+      segundosTipicos += v.segundos;
+      if (v.metros / this.tamanhoDo(it, k) >= this.p.coberturaMin)
+        tipicoKmh[k] = (v.metros / v.segundos) * 3.6;
     }
+    const mediaTipica = media(metrosTipicos, segundosTipicos, minimoM);
 
-    return { tamanhoM: this.p.tamanhoM, kmh, mediaKmh };
+    // Onde nenhum ônibus da linha passou há pouco: o típico, ajustado pelo
+    // trânsito que as outras linhas estão vendo nas mesmas ruas.
+    const kmh = vivo.map((v, k) => {
+      if (v !== null) return v;
+      const fator = this.transito?.cidade.fator(
+        it.celulas[k],
+        this.transito.linha,
+        agora,
+      );
+      const base = tipicoKmh[k] ?? (fator !== undefined ? mediaTipica : null);
+      return base === null ? null : umaCasa(base * (fator ?? 1));
+    });
+
+    return {
+      tamanhoM: this.p.tamanhoM,
+      kmh,
+      mediaKmh: media(metros, segundos, minimoM) ?? mediaTipica,
+    };
   }
 
   /** Esquece a última posição de ônibus que sumiram do itinerário. */
@@ -228,6 +278,7 @@ export class VelocidadeTrechos {
     s1: number,
     dt: number,
     t: number,
+    tipico?: Map<number, PercursoTipico>,
   ) {
     const tam = this.p.tamanhoM;
     const ultimo = it.metros.length - 1;
@@ -240,6 +291,23 @@ export class VelocidadeTrechos {
       it.segundos[k] = it.segundos[k] * peso + gasto;
       it.em[k] = Math.max(it.em[k], t);
       this.historico?.registrar(codigo, it.assinatura, k, coberto, gasto, t);
+
+      const normal = tipico?.get(k);
+      if (
+        this.transito &&
+        normal &&
+        normal.segundos > 0 &&
+        normal.metros / this.tamanhoDo(it, k) >= this.p.coberturaMin
+      ) {
+        const razao = coberto / gasto / (normal.metros / normal.segundos);
+        this.transito.cidade.registrar(
+          it.celulas[k],
+          this.transito.linha,
+          razao,
+          coberto,
+          t,
+        );
+      }
     }
   }
 

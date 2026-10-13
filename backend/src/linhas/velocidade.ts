@@ -140,6 +140,11 @@ export class RastreadorVelocidade {
     return this.veiculos.get(id)?.fixes.at(-2);
   }
 
+  /** A posição atual (o último fix), com a hora em que o GPS a mediu. */
+  posicaoAtual(id: string): (LatLng & { t: number }) | undefined {
+    return this.veiculos.get(id)?.fixes.at(-1);
+  }
+
   /** Remove veículos que sumiram da API há muito tempo. */
   esquecerAntigos(agora: number): void {
     for (const [id, h] of this.veiculos) {
