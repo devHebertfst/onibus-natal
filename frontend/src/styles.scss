@@ -28,6 +28,8 @@
   --reg-fundo: #fdecec;
   --foco: #1b1f22;
   --selecao: #ffc20e;
+  /* Passageiro no mapa: o ponto azul do GPS, convenção de todo app de mapa. */
+  --eu: #1a73e8;
   --sombra: 0 1px 2px rgb(16 20 22 / 16%), 0 6px 18px rgb(16 20 22 / 14%);
   --sombra-placa: 0 2px 4px rgb(16 20 22 / 22%), 0 8px 20px rgb(16 20 22 / 16%);
   --raio: 8px;
@@ -52,6 +54,7 @@
   --reg: #ff6b6b;
   --reg-fundo: #3a1a1b;
   --foco: #ffffff;
+  --eu: #4c8df6;
   --sombra: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 22px rgb(0 0 0 / 45%);
   --sombra-placa: 0 2px 4px rgb(0 0 0 / 45%), 0 8px 22px rgb(0 0 0 / 40%);
 }
