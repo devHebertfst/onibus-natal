@@ -9,7 +9,11 @@ import {
 import { Interval } from '@nestjs/schedule';
 import { CachePersistente } from '../banco/cache-persistente.js';
 import type { LatLng } from './geo.js';
-import type { ItinerarioDto } from './linha.dto.js';
+import type {
+  AjustePrevisaoDto,
+  ItinerarioDto,
+  TrechosDto,
+} from './linha.dto.js';
 import { segundosEntre } from './perfil.js';
 import { RotaMetros } from './rota.js';
 
@@ -32,9 +36,21 @@ const MEIA_VIDA_MS = 7 * 24 * 60 * 60_000;
 const CAIXA_MS = 30_000;
 const CAIXAS = 81;
 const CHAVE = 'placar-previsao:v1';
+/** Chegadas num horizonte para a correção dele valer. */
+const AJUSTE_MIN_N = 30;
+/** A correção nunca passa disso do horizonte (fração). */
+const AJUSTE_MAX_FRACAO = 0.25;
 
-export type Fonte = 'nossa' | 'nubus';
-const FONTES: Fonte[] = ['nossa', 'nubus'];
+/**
+ * `nossa`: a conta crua, de onde sai a correção; `ajustada`: a mesma com a
+ * correção aplicada, que é o que o app mostra.
+ */
+export type Fonte = 'nossa' | 'ajustada' | 'nubus';
+const FONTES: Fonte[] = ['nossa', 'ajustada', 'nubus'];
+
+/** De onde veio a maior parte da velocidade usada na conta (em metros). */
+export type Dado = 'aoVivo' | 'historico' | 'mediaLinha' | 'padrao';
+const DADOS: Dado[] = ['aoVivo', 'historico', 'mediaLinha', 'padrao'];
 
 interface Estatistica {
   n: number;
@@ -43,17 +59,30 @@ interface Estatistica {
   hist: number[];
 }
 
+/** Erro relativo ao horizonte (erro ÷ antecedência), para juntar horizontes. */
+interface Relativo {
+  n: number;
+  somaAbs: number;
+  soma: number;
+}
+
 interface Placar {
   desde: number;
   em: number;
   fontes: Record<Fonte, Record<string, Estatistica>>;
   /** Mesma parada, mesmo ônibus, mesma antecedência: quem errou menos. */
   pares: Record<string, { n: number; nossaMelhor: number }>;
+  /** A nossa (crua), por origem da velocidade e horizonte. */
+  porDado: Partial<Record<Dado, Record<string, Estatistica>>>;
+  /** A nossa (crua), por linha, juntando os horizontes. */
+  porLinha: Record<string, Relativo>;
 }
 
 interface Pendente {
   criadaEm: number;
   previstas: Partial<Record<Fonte, Map<number, number>>>;
+  /** Origem da velocidade da nossa previsão, por horizonte. */
+  dados: Map<number, Dado>;
 }
 
 interface OnibusNaRota {
@@ -64,6 +93,7 @@ interface OnibusNaRota {
 }
 
 interface Itinerario {
+  linha: string;
   assinatura: string;
   rota: RotaMetros;
   /** Paradas pela posição no traçado, em ordem. */
@@ -95,11 +125,19 @@ export interface ResumoHorizonte {
 
 export interface ResumoPlacar {
   desde: string;
-  /** Por antecedência ("2", "5", "10", "15" min). */
+  /** Por antecedência ("2", "5", "10", "15" min): a conta crua. */
   nossa: Record<string, ResumoHorizonte>;
+  /** A nossa com a correção aprendida (o que o app mostra). */
+  ajustada: Record<string, ResumoHorizonte>;
   nubus: Record<string, ResumoHorizonte>;
   /** Quando as duas previram a mesma chegada: % em que a nossa errou menos. */
   comparacao: Record<string, { n: number; nossaMelhorPct: number }>;
+  /** A correção em uso agora. */
+  ajuste: AjustePrevisaoDto | null;
+  /** A nossa (crua) pela origem da maior parte da velocidade usada. */
+  porDado: Partial<Record<Dado, Record<string, ResumoHorizonte>>>;
+  /** A nossa (crua) por linha: erro médio e viés em % da antecedência. */
+  porLinha: { linha: string; n: number; erroPct: number; viesPct: number }[];
 }
 
 /**
@@ -114,6 +152,12 @@ export interface ResumoPlacar {
  * - Quando o ônibus passa pela parada, a hora da passagem sai da
  *   interpolação entre as duas posições ao redor dela, e o erro de cada
  *   previsão guardada vai para o placar.
+ * - O viés da nossa conta (sempre adiantada ou atrasada num horizonte)
+ *   vira uma correção que o app aplica; a previsão corrigida entra no placar
+ *   como `ajustada`, para ver se a correção ajuda. A correção sai sempre da
+ *   conta crua, para não corrigir em cima da própria correção.
+ * - A nossa também é separada pela origem da velocidade usada (medida agora,
+ *   histórico, média da linha, padrão) e por linha, para saber onde ela erra.
  *
  * O placar perde metade do peso a cada 7 dias e fica guardado no banco.
  */
@@ -133,16 +177,23 @@ export class PlacarPrevisao implements OnModuleInit, OnApplicationShutdown {
 
   async onModuleInit(): Promise<void> {
     const salvo = await this.cache?.ler<Placar>(CHAVE);
-    if (salvo?.fontes && salvo.pares) this.placar = salvo;
+    if (salvo?.fontes && salvo.pares) {
+      // Placar gravado antes da correção e das divisões.
+      salvo.fontes.ajustada ??= {};
+      salvo.porDado ??= {};
+      salvo.porLinha ??= {};
+      this.placar = salvo;
+    }
   }
 
   /** Uma atualização da linha: posições novas e as velocidades por trecho. */
   observarLinha(
+    linha: string,
     itinerarios: ItinerarioDto[],
     onibus: OnibusObservado[],
     agora: number,
   ): void {
-    for (const it of itinerarios) this.definir(it);
+    for (const it of itinerarios) this.definir(linha, it);
     for (const o of onibus) {
       for (const codigo of o.itinerarios) {
         const it = this.itinerarios.get(codigo);
@@ -167,18 +218,39 @@ export class PlacarPrevisao implements OnModuleInit, OnApplicationShutdown {
     }
   }
 
+  /**
+   * A correção para o app: o viés médio da conta crua em cada horizonte com
+   * chegadas suficientes, limitado a 25% do horizonte. `null` sem nenhum.
+   */
+  ajuste(): AjustePrevisaoDto | null {
+    const minutosH: number[] = [];
+    const correcaoMin: number[] = [];
+    for (const h of HORIZONTES_MIN) {
+      const e = this.placar.fontes.nossa[h];
+      if (!e || e.n < AJUSTE_MIN_N) continue;
+      const limite = h * AJUSTE_MAX_FRACAO;
+      const vies = e.soma / e.n / 60_000;
+      minutosH.push(h);
+      correcaoMin.push(
+        Math.round(Math.max(-limite, Math.min(limite, vies)) * 100) / 100,
+      );
+    }
+    return minutosH.length ? { minutos: minutosH, correcaoMin } : null;
+  }
+
   resumo(): ResumoPlacar {
     const p = this.placar;
-    const porFonte = (f: Fonte) =>
+    const porHorizonte = (estatisticas: Record<string, Estatistica> = {}) =>
       Object.fromEntries(
-        Object.entries(p.fontes[f])
+        Object.entries(estatisticas)
           .filter(([, e]) => e.n >= 0.5)
           .map(([h, e]) => [h, resumir(e)]),
       );
     return {
       desde: new Date(p.desde).toISOString(),
-      nossa: porFonte('nossa'),
-      nubus: porFonte('nubus'),
+      nossa: porHorizonte(p.fontes.nossa),
+      ajustada: porHorizonte(p.fontes.ajustada),
+      nubus: porHorizonte(p.fontes.nubus),
       comparacao: Object.fromEntries(
         Object.entries(p.pares)
           .filter(([, x]) => x.n >= 0.5)
@@ -190,6 +262,22 @@ export class PlacarPrevisao implements OnModuleInit, OnApplicationShutdown {
             },
           ]),
       ),
+      ajuste: this.ajuste(),
+      porDado: Object.fromEntries(
+        DADOS.filter((d) => p.porDado[d]).map((d) => [
+          d,
+          porHorizonte(p.porDado[d]),
+        ]),
+      ),
+      porLinha: Object.entries(p.porLinha)
+        .filter(([, r]) => r.n >= 0.5)
+        .sort(([, a], [, b]) => b.n - a.n)
+        .map(([linha, r]) => ({
+          linha,
+          n: Math.round(r.n),
+          erroPct: Math.round((100 * r.somaAbs) / r.n),
+          viesPct: Math.round((100 * r.soma) / r.n),
+        })),
     };
   }
 
@@ -204,7 +292,7 @@ export class PlacarPrevisao implements OnModuleInit, OnApplicationShutdown {
     await this.gravar();
   }
 
-  private definir(dto: ItinerarioDto): void {
+  private definir(linha: string, dto: ItinerarioDto): void {
     if (dto.tracado.length < 2) return;
     const assinatura = `${dto.tracado.length}:${dto.tracado[0]}:${dto.tracado.at(-1)}`;
     let it = this.itinerarios.get(dto.codigo);
@@ -220,6 +308,7 @@ export class PlacarPrevisao implements OnModuleInit, OnApplicationShutdown {
       }
       paradas.sort((a, b) => a.s - b.s);
       it = {
+        linha,
         assinatura,
         rota,
         paradas,
@@ -266,16 +355,30 @@ export class PlacarPrevisao implements OnModuleInit, OnApplicationShutdown {
     if (!atual?.avancando) return; // sentido ainda não confirmado
 
     // A nossa previsão para as paradas à frente, como o app calcula.
+    const ajuste = this.ajuste();
     const maisLonge = (HORIZONTES_MIN.at(-1)! + 1) * 60_000;
     for (const p of it.paradas) {
       if (p.s < atual.s + MARGEM_PARADA_M) continue;
       const previsto = atual.t + segundosEntre(it.trechos, atual.s, p.s) * 1000;
       if (previsto - agora > maisLonge) break;
-      this.guardar(it, o.id, p.codigo, 'nossa', previsto, agora);
+      const h = this.guardar(it, o.id, p.codigo, 'nossa', previsto, agora);
+      if (h === undefined) continue;
+      // A corrigida e a origem da velocidade vão no mesmo horizonte da crua.
+      const pendente = it.pendentes.get(`${o.id}|${p.codigo}`)!;
+      const ajustada = (pendente.previstas.ajustada ??= new Map());
+      if (!ajustada.has(h)) {
+        const minutos = (previsto - agora) / 60_000;
+        ajustada.set(h, previsto - corrigir(minutos, ajuste) * 60_000);
+      }
+      if (!pendente.dados.has(h))
+        pendente.dados.set(h, dadoEntre(it.trechos, atual.s, p.s));
     }
   }
 
-  /** Guarda a previsão se ela cai num dos horizontes ainda sem registro. */
+  /**
+   * Guarda a previsão se ela cai num dos horizontes ainda sem registro.
+   * Devolve o horizonte em que ela caiu.
+   */
   private guardar(
     it: Itinerario,
     onibus: string,
@@ -283,20 +386,22 @@ export class PlacarPrevisao implements OnModuleInit, OnApplicationShutdown {
     fonte: Fonte,
     previsto: number,
     agora: number,
-  ): void {
+  ): number | undefined {
     const restante = previsto - agora;
     const h = HORIZONTES_MIN.find(
       (x) => Math.abs(restante - x * 60_000) <= TOLERANCIA_HORIZONTE_MS,
     );
-    if (h === undefined) return;
+    if (h === undefined) return undefined;
     const chave = `${onibus}|${parada}`;
     let pendente = it.pendentes.get(chave);
     if (!pendente) {
-      pendente = { criadaEm: agora, previstas: {} };
+      pendente = { criadaEm: agora, previstas: {}, dados: new Map() };
       it.pendentes.set(chave, pendente);
     }
     const porH = (pendente.previstas[fonte] ??= new Map());
-    if (!porH.has(h)) porH.set(h, previsto);
+    if (porH.has(h)) return undefined;
+    porH.set(h, previsto);
+    return h;
   }
 
   private resolver(
@@ -319,12 +424,23 @@ export class PlacarPrevisao implements OnModuleInit, OnApplicationShutdown {
         if (previsto === undefined) continue;
         const erro = previsto - real;
         erros[f] = erro;
-        const e = (this.placar.fontes[f][h] ??= estatisticaVazia());
-        e.n += 1;
-        e.somaAbs += Math.abs(erro);
-        e.soma += erro;
-        const caixa = Math.round(erro / CAIXA_MS) + (CAIXAS - 1) / 2;
-        e.hist[Math.max(0, Math.min(CAIXAS - 1, caixa))] += 1;
+        somar((this.placar.fontes[f][h] ??= estatisticaVazia()), erro);
+      }
+      if (erros.nossa !== undefined) {
+        const dado = pendente.dados.get(h);
+        if (dado) {
+          const porH = (this.placar.porDado[dado] ??= {});
+          somar((porH[h] ??= estatisticaVazia()), erros.nossa);
+        }
+        const rel = erros.nossa / (h * 60_000);
+        const l = (this.placar.porLinha[it.linha] ??= {
+          n: 0,
+          somaAbs: 0,
+          soma: 0,
+        });
+        l.n += 1;
+        l.somaAbs += Math.abs(rel);
+        l.soma += rel;
       }
       if (erros.nossa !== undefined && erros.nubus !== undefined) {
         const par = (this.placar.pares[h] ??= { n: 0, nossaMelhor: 0 });
@@ -342,13 +458,20 @@ export class PlacarPrevisao implements OnModuleInit, OnApplicationShutdown {
     const k = Math.pow(0.5, Math.max(0, agora - p.em) / MEIA_VIDA_MS);
     p.em = agora;
     if (k === 1) return;
-    for (const f of FONTES) {
-      for (const e of Object.values(p.fontes[f])) {
-        e.n *= k;
-        e.somaAbs *= k;
-        e.soma *= k;
-        for (let i = 0; i < e.hist.length; i++) e.hist[i] *= k;
-      }
+    const estatisticas = [
+      ...FONTES.flatMap((f) => Object.values(p.fontes[f])),
+      ...Object.values(p.porDado).flatMap((porH) => Object.values(porH ?? {})),
+    ];
+    for (const e of estatisticas) {
+      e.n *= k;
+      e.somaAbs *= k;
+      e.soma *= k;
+      for (let i = 0; i < e.hist.length; i++) e.hist[i] *= k;
+    }
+    for (const r of Object.values(p.porLinha)) {
+      r.n *= k;
+      r.somaAbs *= k;
+      r.soma *= k;
     }
     for (const par of Object.values(p.pares)) {
       par.n *= k;
@@ -373,9 +496,68 @@ function vazio(agora: number): Placar {
   return {
     desde: agora,
     em: agora,
-    fontes: { nossa: {}, nubus: {} },
+    fontes: { nossa: {}, ajustada: {}, nubus: {} },
     pares: {},
+    porDado: {},
+    porLinha: {},
   };
+}
+
+function somar(e: Estatistica, erro: number): void {
+  e.n += 1;
+  e.somaAbs += Math.abs(erro);
+  e.soma += erro;
+  const caixa = Math.round(erro / CAIXA_MS) + (CAIXAS - 1) / 2;
+  e.hist[Math.max(0, Math.min(CAIXAS - 1, caixa))] += 1;
+}
+
+/**
+ * Quanto subtrair (min) de uma previsão de `minutos`: a correção do ajuste,
+ * interpolada entre os horizontes; até o 1º, proporcional (0 na chegada).
+ * A mesma conta do frontend (`dead-reckoning/previsao.ts`).
+ */
+export function corrigir(
+  minutos: number,
+  ajuste: AjustePrevisaoDto | null | undefined,
+): number {
+  const xs = ajuste?.minutos ?? [];
+  const ys = ajuste?.correcaoMin ?? [];
+  if (xs.length === 0 || !(minutos > 0)) return 0;
+  if (minutos <= xs[0]) return (ys[0] * minutos) / xs[0];
+  for (let i = 1; i < xs.length; i++) {
+    if (minutos <= xs[i]) {
+      const f = (minutos - xs[i - 1]) / (xs[i] - xs[i - 1]);
+      return ys[i - 1] + f * (ys[i] - ys[i - 1]);
+    }
+  }
+  return ys.at(-1)!;
+}
+
+/** A origem da maior parte (em metros) da velocidade usada entre `de` e `ate`. */
+export function dadoEntre(
+  trechos: TrechosDto | undefined,
+  de: number,
+  ate: number,
+): Dado {
+  const semDado: Dado = trechos?.mediaKmh != null ? 'mediaLinha' : 'padrao';
+  const tam = trechos?.tamanhoM;
+  if (!trechos?.fontes || !tam || ate <= de) return semDado;
+  const metros: Record<Dado, number> = {
+    aoVivo: 0,
+    historico: 0,
+    mediaLinha: 0,
+    padrao: 0,
+  };
+  let s = Math.max(0, de);
+  while (s < ate) {
+    const fim = Math.min(ate, (Math.floor(s / tam) + 1) * tam);
+    const c = trechos.fontes[Math.floor(s / tam)];
+    metros[
+      c === 'v' ? 'aoVivo' : c === 'h' || c === 't' ? 'historico' : semDado
+    ] += fim - s;
+    s = fim;
+  }
+  return DADOS.reduce((a, b) => (metros[b] > metros[a] ? b : a));
 }
 
 function estatisticaVazia(): Estatistica {

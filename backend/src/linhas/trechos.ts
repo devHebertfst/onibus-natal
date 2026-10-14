@@ -251,14 +251,19 @@ export class VelocidadeTrechos {
 
     // Onde nenhum ônibus da linha passou há pouco: o típico, ajustado pelo
     // trânsito que as outras linhas estão vendo nas mesmas ruas.
+    let fontes = '';
     const kmh = vivo.map((v, k) => {
-      if (v !== null) return v;
+      if (v !== null) {
+        fontes += 'v';
+        return v;
+      }
       const fator = this.transito?.cidade.fator(
         it.celulas[k],
         this.transito.linha,
         agora,
       );
       const base = tipicoKmh[k] ?? (fator !== undefined ? mediaTipica : null);
+      fontes += tipicoKmh[k] !== null ? 'h' : base !== null ? 't' : '-';
       return base === null ? null : umaCasa(base * (fator ?? 1));
     });
 
@@ -266,6 +271,7 @@ export class VelocidadeTrechos {
       tamanhoM: this.p.tamanhoM,
       kmh,
       mediaKmh: media(metros, segundos, minimoM) ?? mediaTipica,
+      fontes,
     };
   }
 
