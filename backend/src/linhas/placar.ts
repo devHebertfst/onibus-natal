@@ -40,6 +40,14 @@ const CHAVE = 'placar-previsao:v1';
 const AJUSTE_MIN_N = 30;
 /** A correção nunca passa disso do horizonte (fração). */
 const AJUSTE_MAX_FRACAO = 0.25;
+/** Chegadas de uma linha para ela ter correção própria. */
+const AJUSTE_LINHA_MIN_N = 50;
+/** Correção própria da linha: no máximo dobra a previsão, ou tira um terço. */
+const AJUSTE_LINHA_MIN = -1;
+const AJUSTE_LINHA_MAX = 0.33;
+/** Histograma do erro relativo das linhas: caixas de 5%, de −200% a +200%. */
+const CAIXA_REL = 0.05;
+const CAIXAS_REL = 81;
 
 /**
  * `nossa`: a conta crua, de onde sai a correção; `ajustada`: a mesma com a
@@ -64,6 +72,8 @@ interface Relativo {
   n: number;
   somaAbs: number;
   soma: number;
+  /** Ausente no placar gravado antes da correção por linha. */
+  hist?: number[];
 }
 
 interface Placar {
@@ -121,6 +131,8 @@ export interface ResumoHorizonte {
   p90Min: number;
   /** > 0: previu mais tarde do que o ônibus chegou (chegou antes). */
   viesMin: number;
+  /** Metade das previsões erra para mais que isso, metade para menos. */
+  viesMedianoMin: number;
 }
 
 export interface ResumoPlacar {
@@ -136,8 +148,18 @@ export interface ResumoPlacar {
   ajuste: AjustePrevisaoDto | null;
   /** A nossa (crua) pela origem da maior parte da velocidade usada. */
   porDado: Partial<Record<Dado, Record<string, ResumoHorizonte>>>;
-  /** A nossa (crua) por linha: erro médio e viés em % da antecedência. */
-  porLinha: { linha: string; n: number; erroPct: number; viesPct: number }[];
+  /**
+   * A nossa (crua) por linha, em % da antecedência: erro médio, viés médio,
+   * viés mediano e a correção própria em uso (null: usa a geral).
+   */
+  porLinha: {
+    linha: string;
+    n: number;
+    erroPct: number;
+    viesPct: number;
+    viesMedianoPct: number | null;
+    correcaoPct: number | null;
+  }[];
 }
 
 /**
@@ -219,23 +241,45 @@ export class PlacarPrevisao implements OnModuleInit, OnApplicationShutdown {
   }
 
   /**
-   * A correção para o app: o viés médio da conta crua em cada horizonte com
-   * chegadas suficientes, limitado a 25% do horizonte. `null` sem nenhum.
+   * A correção para o app, sempre pelo viés mediano da conta crua (a média
+   * se deixa levar pelos poucos ônibus que atrasam muito, e corrigir por ela
+   * piora as previsões que já acertavam):
+   * - geral: por horizonte com chegadas suficientes, limitada a 25% dele;
+   * - da linha (`linha` informada, com chegadas suficientes): uma fração da
+   *   previsão, que vale no lugar da geral.
+   * `null` sem nenhuma das duas.
    */
-  ajuste(): AjustePrevisaoDto | null {
+  ajuste(linha?: string): AjustePrevisaoDto | null {
     const minutosH: number[] = [];
     const correcaoMin: number[] = [];
     for (const h of HORIZONTES_MIN) {
       const e = this.placar.fontes.nossa[h];
       if (!e || e.n < AJUSTE_MIN_N) continue;
       const limite = h * AJUSTE_MAX_FRACAO;
-      const vies = e.soma / e.n / 60_000;
+      const vies = mediana(e.hist, CAIXA_MS) / 60_000;
       minutosH.push(h);
-      correcaoMin.push(
-        Math.round(Math.max(-limite, Math.min(limite, vies)) * 100) / 100,
-      );
+      correcaoMin.push(arredondar(Math.max(-limite, Math.min(limite, vies))));
     }
-    return minutosH.length ? { minutos: minutosH, correcaoMin } : null;
+    const fracaoLinha =
+      linha === undefined ? null : this.correcaoDaLinha(linha);
+    if (!minutosH.length && fracaoLinha === null) return null;
+    return {
+      minutos: minutosH,
+      correcaoMin,
+      ...(fracaoLinha === null ? {} : { fracaoLinha }),
+    };
+  }
+
+  /** Fração da previsão que a linha erra (mediana), ou null sem dados. */
+  private correcaoDaLinha(linha: string): number | null {
+    const r = this.placar.porLinha[linha];
+    if (!r?.hist || r.n < AJUSTE_LINHA_MIN_N) return null;
+    const total = r.hist.reduce((a, b) => a + b, 0);
+    if (total < AJUSTE_LINHA_MIN_N) return null;
+    const vies = mediana(r.hist, CAIXA_REL);
+    return arredondar(
+      Math.max(AJUSTE_LINHA_MIN, Math.min(AJUSTE_LINHA_MAX, vies)),
+    );
   }
 
   resumo(): ResumoPlacar {
@@ -272,12 +316,19 @@ export class PlacarPrevisao implements OnModuleInit, OnApplicationShutdown {
       porLinha: Object.entries(p.porLinha)
         .filter(([, r]) => r.n >= 0.5)
         .sort(([, a], [, b]) => b.n - a.n)
-        .map(([linha, r]) => ({
-          linha,
-          n: Math.round(r.n),
-          erroPct: Math.round((100 * r.somaAbs) / r.n),
-          viesPct: Math.round((100 * r.soma) / r.n),
-        })),
+        .map(([linha, r]) => {
+          const correcao = this.correcaoDaLinha(linha);
+          return {
+            linha,
+            n: Math.round(r.n),
+            erroPct: Math.round((100 * r.somaAbs) / r.n),
+            viesPct: Math.round((100 * r.soma) / r.n),
+            viesMedianoPct: r.hist?.some((v) => v > 0)
+              ? Math.round(100 * mediana(r.hist, CAIXA_REL))
+              : null,
+            correcaoPct: correcao === null ? null : Math.round(100 * correcao),
+          };
+        }),
     };
   }
 
@@ -355,7 +406,7 @@ export class PlacarPrevisao implements OnModuleInit, OnApplicationShutdown {
     if (!atual?.avancando) return; // sentido ainda não confirmado
 
     // A nossa previsão para as paradas à frente, como o app calcula.
-    const ajuste = this.ajuste();
+    const ajuste = this.ajuste(it.linha);
     const maisLonge = (HORIZONTES_MIN.at(-1)! + 1) * 60_000;
     for (const p of it.paradas) {
       if (p.s < atual.s + MARGEM_PARADA_M) continue;
@@ -441,6 +492,9 @@ export class PlacarPrevisao implements OnModuleInit, OnApplicationShutdown {
         l.n += 1;
         l.somaAbs += Math.abs(rel);
         l.soma += rel;
+        l.hist ??= Array.from({ length: CAIXAS_REL }, () => 0);
+        const caixa = Math.round(rel / CAIXA_REL) + (CAIXAS_REL - 1) / 2;
+        l.hist[Math.max(0, Math.min(CAIXAS_REL - 1, caixa))] += 1;
       }
       if (erros.nossa !== undefined && erros.nubus !== undefined) {
         const par = (this.placar.pares[h] ??= { n: 0, nossaMelhor: 0 });
@@ -472,6 +526,7 @@ export class PlacarPrevisao implements OnModuleInit, OnApplicationShutdown {
       r.n *= k;
       r.somaAbs *= k;
       r.soma *= k;
+      for (let i = 0; i < (r.hist?.length ?? 0); i++) r.hist![i] *= k;
     }
     for (const par of Object.values(p.pares)) {
       par.n *= k;
@@ -512,17 +567,20 @@ function somar(e: Estatistica, erro: number): void {
 }
 
 /**
- * Quanto subtrair (min) de uma previsão de `minutos`: a correção do ajuste,
- * interpolada entre os horizontes; até o 1º, proporcional (0 na chegada).
+ * Quanto subtrair (min) de uma previsão de `minutos`: a fração da linha,
+ * se ela tem; senão a correção geral, interpolada entre os horizontes (até
+ * o 1º, proporcional; 0 na chegada).
  * A mesma conta do frontend (`dead-reckoning/previsao.ts`).
  */
 export function corrigir(
   minutos: number,
   ajuste: AjustePrevisaoDto | null | undefined,
 ): number {
+  if (!(minutos > 0)) return 0;
+  if (ajuste?.fracaoLinha != null) return ajuste.fracaoLinha * minutos;
   const xs = ajuste?.minutos ?? [];
   const ys = ajuste?.correcaoMin ?? [];
-  if (xs.length === 0 || !(minutos > 0)) return 0;
+  if (xs.length === 0) return 0;
   if (minutos <= xs[0]) return (ys[0] * minutos) / xs[0];
   for (let i = 1; i < xs.length; i++) {
     if (minutos <= xs[i]) {
@@ -570,6 +628,26 @@ function estatisticaVazia(): Estatistica {
 }
 
 const minutos = (ms: number) => Math.round(ms / 6_000) / 10;
+const arredondar = (x: number) => Math.round(x * 100) / 100;
+
+/**
+ * Mediana de um histograma com sinal (caixas de `largura`, a do meio
+ * centrada no zero), interpolando dentro da caixa. 0 se vazio.
+ */
+export function mediana(hist: number[], largura: number): number {
+  const total = hist.reduce((a, b) => a + b, 0);
+  if (!(total > 0)) return 0;
+  const meio = (hist.length - 1) / 2;
+  let acc = 0;
+  for (let i = 0; i < hist.length; i++) {
+    if (acc + hist[i] >= total / 2 && hist[i] > 0) {
+      const dentro = (total / 2 - acc) / hist[i];
+      return (i - meio - 0.5 + dentro) * largura;
+    }
+    acc += hist[i];
+  }
+  return 0;
+}
 
 function resumir(e: Estatistica): ResumoHorizonte {
   // Histograma do erro absoluto a partir do com sinal.
@@ -591,5 +669,6 @@ function resumir(e: Estatistica): ResumoHorizonte {
     medianaMin: minutos(quantil(0.5)),
     p90Min: minutos(quantil(0.9)),
     viesMin: minutos(e.soma / e.n),
+    viesMedianoMin: minutos(mediana(e.hist, CAIXA_MS)),
   };
 }

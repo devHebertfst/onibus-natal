@@ -297,11 +297,12 @@ amostragem de GPS; se alguém abrir uma delas, ela entra no ciclo normal.
 `COLETA_LINHAS=auto` (padrão) escolhe as 10 (`COLETA_QUANTAS`) que, juntas,
 mais cobrem ruas por onde passam outras linhas, a partir do índice de
 paradas; ou liste os números (`33,85`). No automático, uma troncal que
-passa 2 rajadas seguidas sem medir nada (sem ônibus rodando naquele
-horário, como uma expressa fora do pico, ou uma linha sem GPS na Nubus) é
+passa 3 rajadas seguidas sem nenhum ônibus com GPS (linha sem GPS na Nubus,
+ou sem ônibus rodando naquele horário, como uma expressa fora do pico) é
 trocada pela próxima melhor e fica fora da escolha por 7 dias
 (`COLETA_DESCARTE_DIAS`, guardado no banco), para não gastar de novo o
-começo de cada pico; depois volta a ser testada. Linhas listadas à
+começo de cada pico; depois volta a ser testada. Ônibus parados (no
+terminal, por exemplo) não contam: a linha tem GPS, só não andou. Linhas listadas à
 mão nunca são trocadas. `COLETA=false` desliga. `/api/diagnostico` mostra
 em `coleta` as linhas, as trocadas (`descartadas`) e as rajadas, e em
 `transito` quantos pedaços de rua têm medida.
@@ -322,14 +323,21 @@ tarde do que o ônibus chegou), e em `comparacao` a % de vezes em que a nossa
 errou menos que a da Nubus na mesma chegada. O placar perde metade do peso a
 cada 7 dias (mostra o desempenho atual) e fica guardado no banco.
 
-**Correção do viés.** Se a nossa conta erra sempre para o mesmo lado num
-horizonte (por exemplo, o ônibus chega 0,5 min depois do previsto quando
-falta 2 min), o placar transforma esse viés numa correção: cada horizonte
-com 30 chegadas ou mais entra, limitado a 25% do horizonte. Ela vai na
-resposta de cada linha (`ajustePrevisao`) e o app a aplica, interpolando
-entre os horizontes. A correção sai sempre da conta crua (`nossa`); a
-corrigida aparece em `ajustada`, para ver se ela ajuda. `ajuste` mostra a
-correção em uso.
+**Correção do viés.** Se a nossa conta erra sempre para o mesmo lado, o
+placar transforma esse viés numa correção, sempre pelo viés **mediano** (a
+média se deixa levar pelos poucos ônibus que atrasam muito, e corrigir por
+ela piora as previsões que já acertavam):
+- geral, por horizonte com 30 chegadas ou mais, limitada a 25% do horizonte
+  e interpolada entre os horizontes;
+- por linha, com 50 chegadas ou mais: uma fração da previsão (a 105 chega
+  50% depois do previsto → soma 50%), limitada entre dobrar e tirar um
+  terço, que vale no lugar da geral.
+
+Ela vai na resposta de cada linha (`ajustePrevisao`) e o app a aplica. A
+correção sai sempre da conta crua (`nossa`); a corrigida aparece em
+`ajustada`, para ver se ela ajuda. `ajuste` mostra a correção geral em uso;
+`viesMedianoMin` (por horizonte) e, em `porLinha`, `viesMedianoPct` e
+`correcaoPct` mostram de onde ela sai.
 
 **Onde a previsão erra.** `porDado` separa a conta crua pela origem da maior
 parte da velocidade usada até a parada: `aoVivo` (medida agora pelos ônibus

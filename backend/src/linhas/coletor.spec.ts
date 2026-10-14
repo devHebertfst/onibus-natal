@@ -70,7 +70,7 @@ describe('ColetorTroncais', () => {
     itinerario('C', avenida(0, 2000, -35.25)),
     itinerario('D', avenida(0, 800, -35.25)),
   ];
-  /** `rende`: quantas medidas cada leitura da linha dá (padrão: 3). */
+  /** `rende`: quantos ônibus com GPS cada leitura da linha vê (padrão: 3). */
   const novo = (
     linhas = 'auto',
     rende: Record<string, number> = {},
@@ -81,7 +81,8 @@ describe('ColetorTroncais', () => {
       {
         coletar: vi.fn(async (n: string) => {
           lidas.push(n);
-          return rende[n] ?? 3;
+          const onibus = rende[n] ?? 3;
+          return { medidas: onibus, onibus };
         }),
       } as unknown as LinhasService,
       { malha: async () => malha } as unknown as ParadasService,
@@ -115,26 +116,38 @@ describe('ColetorTroncais', () => {
     expect(coletor.resumo()).toMatchObject({ linhas: ['A'], rajadas: 2 });
   });
 
-  it('troca a troncal que passa 2 rajadas sem ônibus andando', async () => {
+  it('troca a troncal que passa 3 rajadas sem nenhum ônibus com GPS', async () => {
     const { coletor, lidas } = novo('auto', { A: 0 });
     await coletor.tique(SETE_DA_MANHA);
-    expect(coletor.resumo().linhas).toEqual(['A']); // 1 rajada vazia: espera
     await coletor.tique(SETE_DA_MANHA + 15 * MIN);
+    expect(coletor.resumo().linhas).toEqual(['A']); // 2 rajadas vazias: espera
+    await coletor.tique(SETE_DA_MANHA + 30 * MIN);
     const r = coletor.resumo();
     expect(r.descartadas).toEqual(['A']);
     expect(r.linhas).toHaveLength(1);
     expect(r.linhas).not.toContain('A');
     // a próxima rajada já lê a substituta
     lidas.length = 0;
-    await coletor.tique(SETE_DA_MANHA + 30 * MIN);
+    await coletor.tique(SETE_DA_MANHA + 45 * MIN);
     expect(lidas).toEqual([r.linhas![0], r.linhas![0]]);
+  });
+
+  it('não troca a troncal com ônibus parados (tem GPS, só não andou)', async () => {
+    const { coletor } = novo('auto');
+    // ônibus com GPS, mas nenhuma medida (parados no terminal)
+    (
+      coletor as unknown as { linhas: { coletar: () => unknown } }
+    ).linhas.coletar = async () => ({ medidas: 0, onibus: 2 });
+    for (let i = 0; i < 4; i++)
+      await coletor.tique(SETE_DA_MANHA + i * 15 * MIN);
+    expect(coletor.resumo()).toMatchObject({ linhas: ['A'], descartadas: [] });
   });
 
   it('a trocada fica fora da escolha por 7 dias, mesmo se o servidor reiniciar', async () => {
     const DIA = 24 * 60 * MIN;
     const { coletor, banco } = novo('auto', { A: 0 });
-    await coletor.tique(SETE_DA_MANHA);
-    await coletor.tique(SETE_DA_MANHA + 15 * MIN);
+    for (let i = 0; i < 3; i++)
+      await coletor.tique(SETE_DA_MANHA + i * 15 * MIN);
     expect(coletor.resumo().descartadas).toEqual(['A']);
 
     // dia seguinte: escolha nova, ainda sem a A
@@ -161,13 +174,13 @@ describe('ColetorTroncais', () => {
     (
       aberta.coletor as unknown as { linhas: { coletar: () => unknown } }
     ).linhas.coletar = async () => null;
-    await aberta.coletor.tique(SETE_DA_MANHA);
-    await aberta.coletor.tique(SETE_DA_MANHA + 15 * MIN);
+    for (let i = 0; i < 3; i++)
+      await aberta.coletor.tique(SETE_DA_MANHA + i * 15 * MIN);
     expect(aberta.coletor.resumo().descartadas).toEqual([]);
 
     const fixas = novo('33', { '33': 0 });
-    await fixas.coletor.tique(SETE_DA_MANHA);
-    await fixas.coletor.tique(SETE_DA_MANHA + 15 * MIN);
+    for (let i = 0; i < 3; i++)
+      await fixas.coletor.tique(SETE_DA_MANHA + i * 15 * MIN);
     expect(fixas.coletor.resumo()).toMatchObject({
       linhas: ['33'],
       descartadas: [],
@@ -212,10 +225,10 @@ describe('LinhasService.coletar', () => {
 
   it('mede a velocidade com duas leituras, fora do ciclo normal', async () => {
     const service = new LinhasService(client as unknown as NubusClient);
-    expect(await service.coletar('33')).toBe(0); // 1ª leitura: nada a medir
+    expect(await service.coletar('33')).toEqual({ medidas: 0, onibus: 1 }); // 1ª leitura: nada a medir
     vi.setSystemTime(SETE_DA_MANHA + MIN);
     posicaoM = 300;
-    expect(await service.coletar('33')).toBe(1); // um percurso medido
+    expect(await service.coletar('33')).toEqual({ medidas: 1, onibus: 1 }); // um percurso medido
 
     // 300 m em 60 s, medido na hora (sem esperar a posição seguinte)
     expect(service.resumoTrechos()).toEqual([

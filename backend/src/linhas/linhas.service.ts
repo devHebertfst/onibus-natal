@@ -80,6 +80,14 @@ const CONCORRENCIA = 4;
  * por requisição de cliente: mil usuários olhando a linha 33 geram a mesma
  * carga que um.
  */
+/** O que uma leitura do coletor rendeu. */
+export interface LeituraColeta {
+  /** Percursos que viraram velocidade. */
+  medidas: number;
+  /** Ônibus com GPS na linha nessa leitura. */
+  onibus: number;
+}
+
 @Injectable()
 export class LinhasService {
   private readonly logger = new Logger(LinhasService.name);
@@ -169,11 +177,11 @@ export class LinhasService {
 
   /**
    * Uma leitura da linha para o coletor de troncais, sem contar como acesso.
-   * Devolve quantos percursos viraram velocidade nessa leitura, ou `null` se
-   * não leu: alguém está com a linha aberta (o ciclo normal já mede) ou não
-   * há vaga.
+   * Devolve quantos percursos viraram velocidade nessa leitura e quantos
+   * ônibus com GPS a linha tinha, ou `null` se não leu: alguém está com a
+   * linha aberta (o ciclo normal já mede) ou não há vaga.
    */
-  async coletar(numeroBruto: string): Promise<number | null> {
+  async coletar(numeroBruto: string): Promise<LeituraColeta | null> {
     const numero = normalizarNumero(numeroBruto);
     let linha = this.linhas.get(numero);
     if (linha && !linha.somenteColeta) return null;
@@ -183,13 +191,17 @@ export class LinhasService {
       this.linhas.set(numero, linha);
     }
     const antes = linha.trechos.totalMedidas;
+    let lida: LinhaDto;
     try {
-      await this.atualizar(linha);
+      lida = await this.atualizar(linha);
     } catch (e) {
       if (!linha.snapshot) this.linhas.delete(numero);
       throw e;
     }
-    return linha.trechos.totalMedidas - antes;
+    return {
+      medidas: linha.trechos.totalMedidas - antes,
+      onibus: lida.onibus.length,
+    };
   }
 
   private async snapshotDe(linha: LinhaAcompanhada): Promise<LinhaDto> {
@@ -452,7 +464,7 @@ export class LinhasService {
       desatualizado: falhou,
       itinerarios: itinerariosFinais,
       onibus,
-      ajustePrevisao: this.placar.ajuste() ?? undefined,
+      ajustePrevisao: this.placar.ajuste(linha.numero) ?? undefined,
     };
     linha.snapshot = snapshot;
     linha.snapshotEm = agora;

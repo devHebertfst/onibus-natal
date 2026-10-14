@@ -5,7 +5,11 @@ import { config } from '../config.js';
 import { ParadasService } from '../paradas/paradas.service.js';
 import type { ItinerarioMalha } from '../trajetos/roteador.js';
 import { quadrasDoTracado } from './celulas.js';
-import { LinhasService, emParalelo } from './linhas.service.js';
+import {
+  type LeituraColeta,
+  LinhasService,
+  emParalelo,
+} from './linhas.service.js';
 
 export type ParametrosColeta = typeof config.coleta;
 
@@ -14,17 +18,18 @@ export interface ResumoColeta {
   horas: string;
   /** Linhas lidas pelo coletor (null até a 1ª escolha automática). */
   linhas: string[] | null;
-  /** Trocadas por não terem ônibus andando (ficam fora da escolha por uns dias). */
+  /** Trocadas por não terem ônibus com GPS (ficam fora da escolha por uns dias). */
   descartadas: string[];
   ultimaRajada: string | null;
   rajadas: number;
 }
 
 const DIA_MS = 24 * 60 * 60_000;
-/** Rajadas seguidas sem nenhuma medida para uma troncal ser trocada. */
-const RAJADAS_SEM_MEDIDA = 2;
+/** Rajadas seguidas sem nenhum ônibus com GPS para uma troncal ser trocada. */
+const RAJADAS_SEM_ONIBUS = 3;
 /** Linha → quando foi trocada (ms), guardado no banco. */
-const CHAVE_DESCARTADAS = 'coletor-descartadas:v1';
+// v2: a regra mudou (sem ônibus com GPS, não sem medida); as de antes voltam.
+const CHAVE_DESCARTADAS = 'coletor-descartadas:v2';
 
 /**
  * Coletor por amostras das linhas troncais: nas faixas de horário
@@ -36,9 +41,11 @@ const CHAVE_DESCARTADAS = 'coletor-descartadas:v1';
  * compartilhado: quem abrir outra linha que passa pelas mesmas ruas já
  * recebe a previsão ajustada, mesmo sem ninguém ter aberto a troncal.
  *
- * No modo automático, uma troncal que passa 2 rajadas seguidas sem medir
- * nada (sem ônibus rodando naquele horário, como uma expressa fora do pico)
- * dá lugar à próxima melhor candidata. A trocada fica fora da escolha por
+ * No modo automático, uma troncal que passa 3 rajadas seguidas sem nenhum
+ * ônibus com GPS (linha sem GPS na Nubus, ou sem ônibus rodando naquele
+ * horário, como uma expressa fora do pico) dá lugar à próxima melhor
+ * candidata. Ônibus parados (no terminal, por exemplo) não contam como
+ * falha: a linha tem GPS, só não andou naquela rajada. A trocada fica fora da escolha por
  * 7 dias (guardado no banco, sobrevive ao servidor dormir), para não gastar
  * de novo o começo de cada pico com ela; depois volta a ser testada, caso
  * passe a ter ônibus com GPS.
@@ -49,7 +56,7 @@ export class ColetorTroncais {
   private escolhidas?: { linhas: string[]; em: number; auto: boolean };
   private readonly descartadas = new Map<string, number>();
   private descartadasLidas?: Promise<void>;
-  private readonly semMedida = new Map<string, number>();
+  private readonly semOnibus = new Map<string, number>();
   private ultimaRajada = 0;
   private rajadas = 0;
   private rodando = false;
@@ -96,12 +103,12 @@ export class ColetorTroncais {
     for (const numero of linhas) {
       const a = primeira.get(numero);
       const b = segunda.get(numero);
-      if (a === null || b === null) continue; // não leu (aberta por alguém)
-      if ((a ?? 0) + (b ?? 0) > 0) this.semMedida.delete(numero);
-      else this.semMedida.set(numero, (this.semMedida.get(numero) ?? 0) + 1);
+      if (!a || !b) continue; // não leu (aberta por alguém, ou falha da API)
+      if (a.onibus + b.onibus > 0) this.semOnibus.delete(numero);
+      else this.semOnibus.set(numero, (this.semOnibus.get(numero) ?? 0) + 1);
     }
     const trocar = linhas.filter(
-      (n) => (this.semMedida.get(n) ?? 0) >= RAJADAS_SEM_MEDIDA,
+      (n) => (this.semOnibus.get(n) ?? 0) >= RAJADAS_SEM_ONIBUS,
     );
     if (trocar.length > 0) await this.trocar(trocar, agora);
   }
@@ -119,11 +126,11 @@ export class ColetorTroncais {
     };
   }
 
-  /** Lê cada linha; devolve quantas medidas cada leitura rendeu. */
+  /** Lê cada linha; devolve o que cada leitura rendeu (null: não leu). */
   private async lerTodas(
     linhas: string[],
-  ): Promise<Map<string, number | null | undefined>> {
-    const rendeu = new Map<string, number | null | undefined>();
+  ): Promise<Map<string, LeituraColeta | null>> {
+    const rendeu = new Map<string, LeituraColeta | null>();
     await emParalelo(linhas, 2, async (numero) => {
       try {
         rendeu.set(numero, await this.linhas.coletar(numero));
@@ -142,7 +149,7 @@ export class ColetorTroncais {
   private async trocar(sem: string[], agora: number): Promise<void> {
     for (const n of sem) {
       this.descartadas.set(n, agora);
-      this.semMedida.delete(n);
+      this.semOnibus.delete(n);
     }
     await this.cache?.gravar(
       CHAVE_DESCARTADAS,
@@ -160,7 +167,7 @@ export class ColetorTroncais {
         auto: true,
       };
       this.logger.log(
-        `Coletor: ${sem.join(', ')} sem ônibus andando; troncais agora ${linhas.join(', ')}`,
+        `Coletor: ${sem.join(', ')} sem ônibus com GPS; troncais agora ${linhas.join(', ')}`,
       );
     } catch (e) {
       this.logger.warn(
@@ -200,7 +207,7 @@ export class ColetorTroncais {
     for (const [n, em] of this.descartadas) {
       if (agora - em >= this.p.descarteMs) this.descartadas.delete(n);
     }
-    this.semMedida.clear();
+    this.semOnibus.clear();
     try {
       const linhas = escolherTroncais(
         await this.paradas.malha(),

@@ -1,6 +1,6 @@
 import type { CachePersistente } from '../banco/cache-persistente.js';
 import type { ItinerarioDto } from './linha.dto.js';
-import { PlacarPrevisao, corrigir, dadoEntre } from './placar.js';
+import { PlacarPrevisao, corrigir, dadoEntre, mediana } from './placar.js';
 
 const M = 1 / 111_195;
 /** Avenida reta de 2 km rumo ao norte, paradas a 600, 1200 e 1800 m. */
@@ -152,6 +152,85 @@ describe('PlacarPrevisao', () => {
   });
 });
 
+describe('correção pelo viés mediano', () => {
+  /** Placar gravado com os histogramas dados. */
+  const comHistogramas = async (
+    hist2: number[],
+    linhas: Record<string, number[]>,
+  ) => {
+    const soma = (h: number[]) => h.reduce((a, b) => a + b, 0);
+    const salvo = {
+      desde: T0,
+      em: Date.now(),
+      fontes: {
+        nossa: { '2': { n: soma(hist2), somaAbs: 0, soma: 0, hist: hist2 } },
+        ajustada: {},
+        nubus: {},
+      },
+      pares: {},
+      porDado: {},
+      porLinha: Object.fromEntries(
+        Object.entries(linhas).map(([l, hist]) => [
+          l,
+          { n: soma(hist), somaAbs: 0, soma: 0, hist },
+        ]),
+      ),
+    };
+    const placar = new PlacarPrevisao({
+      ler: async () => salvo,
+    } as unknown as CachePersistente);
+    await placar.onModuleInit();
+    return placar;
+  };
+  /** 81 caixas, com `n` na caixa `desvio` caixas longe do zero. */
+  const hist = (...pontos: [desvio: number, n: number][]) => {
+    const h = Array.from({ length: 81 }, () => 0);
+    for (const [d, n] of pontos) h[40 + d] += n;
+    return h;
+  };
+
+  it('não corrige quando só alguns poucos atrasam muito', async () => {
+    // 40 chegadas certas e 10 com 10 min de atraso: a média puxa, a mediana não
+    const placar = await comHistogramas(hist([0, 40], [-20, 10]), {});
+    const ajuste = placar.ajuste()!;
+    expect(ajuste.minutos).toEqual([2]);
+    expect(Math.abs(ajuste.correcaoMin[0])).toBeLessThan(0.1);
+    // a média diria −2 min
+    expect(placar.resumo().nossa['2'].viesMedianoMin).toBeCloseTo(-0.1, 1);
+  });
+
+  it('a linha com chegadas suficientes tem correção própria, limitada', async () => {
+    const placar = await comHistogramas(hist([-1, 40]), {
+      lenta: hist([-10, 60]), // chega 50% depois do previsto
+      muitoLenta: hist([-36, 60]), // 180% depois: limitada a dobrar
+      pouca: hist([-10, 20]), // poucas chegadas: usa a geral
+    });
+    expect(placar.ajuste('lenta')!.fracaoLinha).toBeCloseTo(-0.5);
+    expect(placar.ajuste('muitoLenta')!.fracaoLinha).toBe(-1);
+    expect(placar.ajuste('pouca')!.fracaoLinha).toBeUndefined();
+    expect(placar.ajuste('pouca')!.correcaoMin[0]).toBeCloseTo(-0.5);
+    expect(placar.resumo().porLinha).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          linha: 'lenta',
+          viesMedianoPct: -50,
+          correcaoPct: -50,
+        }),
+        expect.objectContaining({ linha: 'pouca', correcaoPct: null }),
+      ]),
+    );
+  });
+});
+
+describe('mediana', () => {
+  it('interpola dentro da caixa', () => {
+    expect(mediana([0, 0, 2, 0, 0], 1)).toBeCloseTo(0);
+    expect(mediana([0, 0, 0, 0, 3], 10)).toBeCloseTo(20);
+    expect(mediana([1, 0, 0, 0, 3], 1)).toBeCloseTo(1.5 + 1 / 3, 5);
+    expect(mediana([0, 0, 0], 1)).toBe(0);
+  });
+});
+
 describe('corrigir', () => {
   const ajuste = { minutos: [2, 5], correcaoMin: [-0.4, -0.6] };
   it('interpola entre os horizontes e segura o último', () => {
@@ -160,6 +239,8 @@ describe('corrigir', () => {
     expect(corrigir(20, ajuste)).toBeCloseTo(-0.6);
     expect(corrigir(0, ajuste)).toBe(0);
     expect(corrigir(5, null)).toBe(0);
+    // a linha com correção própria: fração da previsão, no lugar da curva
+    expect(corrigir(10, { ...ajuste, fracaoLinha: -0.5 })).toBeCloseTo(-5);
   });
 });
 

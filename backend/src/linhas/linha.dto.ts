@@ -43,14 +43,20 @@ export interface TrechosDto {
 }
 
 /**
- * Correção da nossa previsão aprendida com o placar: a `minutos[i]` da
- * chegada, a previsão costuma errar `correcaoMin[i]` (> 0: chega antes do
- * previsto). Entre os pontos, interpolação linear; depois do último, o
- * último. O app subtrai a correção do que calculou.
+ * Correção da nossa previsão aprendida com o placar (pelo viés mediano): a
+ * `minutos[i]` da chegada, a previsão costuma errar `correcaoMin[i]` (> 0:
+ * chega antes do previsto). Entre os pontos, interpolação linear; depois do
+ * último, o último. O app subtrai a correção do que calculou.
  */
 export interface AjustePrevisaoDto {
   minutos: number[];
   correcaoMin: number[];
+  /**
+   * Correção própria da linha, quando ela tem chegadas suficientes: a
+   * fração da previsão que ela costuma errar (−0,5: chega 50% mais tarde).
+   * Vale no lugar da curva geral; o app subtrai `fracaoLinha × previsão`.
+   */
+  fracaoLinha?: number;
 }
 
 export interface OnibusDto {
