@@ -45,14 +45,17 @@ export function rumoNaParada(frota: Frota, itinerario: string, paradas: Parada[]
 }
 
 /**
- * Quanto subtrair (min) de uma previsão de `minutos`: a correção do ajuste,
- * interpolada entre os horizontes; até o 1º, proporcional (0 na chegada).
+ * Quanto subtrair (min) de uma previsão de `minutos`: a fração da linha,
+ * se ela tem; senão a correção geral, interpolada entre os horizontes (até
+ * o 1º, proporcional; 0 na chegada).
  * A mesma conta do backend (`corrigir` em `linhas/placar.ts`).
  */
 export function corrigir(minutos: number, ajuste: AjustePrevisao | null | undefined): number {
+  if (!(minutos > 0)) return 0;
+  if (ajuste?.fracaoLinha != null) return ajuste.fracaoLinha * minutos;
   const xs = ajuste?.minutos ?? [];
   const ys = ajuste?.correcaoMin ?? [];
-  if (xs.length === 0 || !(minutos > 0)) return 0;
+  if (xs.length === 0) return 0;
   if (minutos <= xs[0]) return (ys[0] * minutos) / xs[0];
   for (let i = 1; i < xs.length; i++) {
     if (minutos <= xs[i]) {

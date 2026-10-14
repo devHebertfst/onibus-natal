@@ -33,6 +33,8 @@ export interface Trechos {
 export interface AjustePrevisao {
   minutos: number[];
   correcaoMin: number[];
+  /** Correção própria da linha (fração da previsão); vale no lugar da curva. */
+  fracaoLinha?: number;
 }
 
 export interface Onibus {

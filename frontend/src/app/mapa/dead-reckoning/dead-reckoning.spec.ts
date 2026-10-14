@@ -238,6 +238,7 @@ describe('corrigir', () => {
     expect(corrigir(20, ajuste)).toBeCloseTo(-0.6);
     expect(corrigir(0, ajuste)).toBe(0);
     expect(corrigir(5, undefined)).toBe(0);
+    expect(corrigir(10, { ...ajuste, fracaoLinha: -0.5 })).toBeCloseTo(-5);
   });
 });
 
