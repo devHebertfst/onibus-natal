@@ -1,3 +1,4 @@
+import type { CachePersistente } from '../banco/cache-persistente.js';
 import { config } from '../config.js';
 import type { NubusClient } from '../nubus/nubus.client.js';
 import type { ParadasService } from '../paradas/paradas.service.js';
@@ -70,7 +71,11 @@ describe('ColetorTroncais', () => {
     itinerario('D', avenida(0, 800, -35.25)),
   ];
   /** `rende`: quantas medidas cada leitura da linha dá (padrão: 3). */
-  const novo = (linhas = 'auto', rende: Record<string, number> = {}) => {
+  const novo = (
+    linhas = 'auto',
+    rende: Record<string, number> = {},
+    banco = new Map<string, unknown>(),
+  ) => {
     const lidas: string[] = [];
     const coletor = new ColetorTroncais(
       {
@@ -88,8 +93,13 @@ describe('ColetorTroncais', () => {
         horas: '6-9',
         pausaMs: 0,
       },
+      {
+        ler: async (chave: string) => banco.get(chave),
+        gravar: async (chave: string, valor: unknown) =>
+          void banco.set(chave, valor),
+      } as unknown as CachePersistente,
     );
-    return { coletor, lidas };
+    return { coletor, lidas, banco };
   };
 
   it('lê cada troncal duas vezes por rajada, a cada 15 min, só no horário', async () => {
@@ -118,6 +128,31 @@ describe('ColetorTroncais', () => {
     lidas.length = 0;
     await coletor.tique(SETE_DA_MANHA + 30 * MIN);
     expect(lidas).toEqual([r.linhas![0], r.linhas![0]]);
+  });
+
+  it('a trocada fica fora da escolha por 7 dias, mesmo se o servidor reiniciar', async () => {
+    const DIA = 24 * 60 * MIN;
+    const { coletor, banco } = novo('auto', { A: 0 });
+    await coletor.tique(SETE_DA_MANHA);
+    await coletor.tique(SETE_DA_MANHA + 15 * MIN);
+    expect(coletor.resumo().descartadas).toEqual(['A']);
+
+    // dia seguinte: escolha nova, ainda sem a A
+    await coletor.tique(SETE_DA_MANHA + DIA);
+    expect(coletor.resumo().linhas).not.toContain('A');
+    expect(coletor.resumo().descartadas).toEqual(['A']);
+
+    // servidor reiniciou: lembra pelo banco
+    const outro = novo('auto', {}, banco);
+    await outro.coletor.tique(SETE_DA_MANHA + 2 * DIA);
+    expect(outro.coletor.resumo().linhas).not.toContain('A');
+
+    // passados os 7 dias, volta a concorrer
+    await outro.coletor.tique(SETE_DA_MANHA + 8 * DIA);
+    expect(outro.coletor.resumo()).toMatchObject({
+      linhas: ['A'],
+      descartadas: [],
+    });
   });
 
   it('não troca linha que alguém está acompanhando nem linhas da configuração', async () => {

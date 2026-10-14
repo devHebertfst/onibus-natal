@@ -145,6 +145,8 @@ export const config = {
     intervaloMs: num(process.env.COLETA_INTERVALO_MS, 15 * 60_000),
     /** Entre as duas leituras de cada rajada (o GPS muda a cada ~30 s). */
     pausaMs: 60_000,
+    /** Uma troncal trocada por falta de ônibus fica fora da escolha por esse tempo. */
+    descarteMs: num(process.env.COLETA_DESCARTE_DIAS, 7) * 24 * 60 * 60_000,
   },
 
   /**
