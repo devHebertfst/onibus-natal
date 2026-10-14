@@ -35,21 +35,6 @@
           @if (l.rumoLongo) {
             <span class="visualmente-oculto">, {{ l.rumoLongo }}</span>
           }
-          @if (l.proximo; as p) {
-            <span class="detalhe">{{ p.detalhe }}</span>
-            <span class="detalhe">ônibus nº {{ p.onibus }}</span>
-            @if (l.depois) {
-              <span class="detalhe">{{ l.depois }}</span>
-            }
-          } @else {
-            <span class="detalhe">Nenhum ônibus vindo agora neste sentido</span>
-            @if (l.tabela) {
-              <span class="detalhe">Pela tabela, o próximo passa às {{ l.tabela }}</span>
-            }
-          }
-          @if (l.aviso; as aviso) {
-            <span class="aviso">{{ aviso }}</span>
-          }
         </div>
         <div class="tempo">
           @if (l.proximo; as p) {
@@ -64,6 +49,26 @@
             }
           } @else {
             <b class="vazio">—</b>
+          }
+        </div>
+        <!-- Detalhes na largura toda, sob o destino e os minutos. -->
+        <div class="info">
+          @if (l.proximo; as p) {
+            <span class="detalhe">{{ p.detalhe }}</span>
+            <span class="detalhe seguintes">
+              <span class="trecho">ônibus nº {{ p.onibus }}</span>
+              @if (l.depois) {
+                <span class="trecho">{{ l.depois }}</span>
+              }
+            </span>
+          } @else {
+            <span class="detalhe">Nenhum ônibus vindo agora neste sentido</span>
+            @if (l.tabela) {
+              <span class="detalhe">Pela tabela, o próximo passa às {{ l.tabela }}</span>
+            }
+          }
+          @if (l.aviso; as aviso) {
+            <span class="aviso">{{ aviso }}</span>
           }
         </div>
       </li>

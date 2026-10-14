@@ -76,13 +76,13 @@ export class Placa {
                     : `a ${distanciaTexto(proximo.metros)} daqui`
                   : `${
                       proximo.paradas === 0
-                        ? 'seu ponto é a próxima parada'
+                        ? 'a próxima parada é a sua'
                         : `a ${proximo.paradas} ${proximo.paradas === 1 ? 'parada' : 'paradas'} daqui`
                     }${proximo.metros === null ? '' : ` (${distanciaTexto(proximo.metros)})`}`,
             }
           : null,
         depois: depois.length
-          ? `depois: ${depois
+          ? `depois ${depois
               .slice(0, 2)
               .map((p) => Math.max(1, Math.round(p.minutos)))
               .join(' e ')} min`

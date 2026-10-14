@@ -63,12 +63,16 @@ ul {
   list-style: none;
 }
 
+/* Destino e minutos na 1ª linha; os detalhes embaixo, na largura toda. */
 li {
   display: grid;
   grid-template-columns: 34px 1fr auto;
+  grid-template-areas:
+    'rumo destino tempo'
+    'rumo info info';
   align-items: center;
-  gap: 10px;
-  padding: 10px 2px;
+  column-gap: 10px;
+  padding: 8px 2px;
 
   & + li {
     border-top: 2px solid rgb(255 255 255 / 55%);
@@ -76,6 +80,7 @@ li {
 }
 
 .rumo {
+  grid-area: rumo;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -106,23 +111,26 @@ li {
 }
 
 .destino {
-  display: flex;
-  flex-direction: column;
+  grid-area: destino;
   min-width: 0;
 
   /* Quadrado na cor do sentido no mapa, com filete branco. */
+  /* Na margem, à esquerda do nome: nunca fica sozinho numa linha. */
   .cor {
-    display: inline-block;
+    position: absolute;
+    top: 0.4em;
+    left: 2px;
     width: 11px;
     height: 11px;
-    margin: 0 8px 2px 2px;
     border-radius: 2px;
     background: var(--cor);
     box-shadow: 0 0 0 2px var(--placa-texto);
-    vertical-align: middle;
   }
 
   strong {
+    position: relative;
+    display: block;
+    padding-left: 21px;
     font-size: 20px;
     font-weight: 800;
     line-height: 1.15;
@@ -131,6 +139,13 @@ li {
     /* Só se um nome sozinho não couber na largura. */
     overflow-wrap: break-word;
   }
+}
+
+.info {
+  grid-area: info;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 
   /* Por que o número mudou: amarelo com preto, como toda advertência. */
   .aviso {
@@ -152,9 +167,25 @@ li {
     color: var(--placa-texto-2);
     font-variant-numeric: tabular-nums;
   }
+
+  /* "ônibus nº X · depois 8 e 18 min": se não couber, quebra no ponto, não no meio. */
+  .seguintes {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 0.4em;
+  }
+
+  .trecho {
+    white-space: nowrap;
+
+    &:not(:last-child)::after {
+      content: '\00a0·';
+    }
+  }
 }
 
 .tempo {
+  grid-area: tempo;
   display: flex;
   align-items: baseline;
   gap: 3px;
