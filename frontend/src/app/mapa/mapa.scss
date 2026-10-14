@@ -173,6 +173,15 @@
   }
 
   /* ---- passageiro ---- */
+  /* Quanto a posição do GPS pode errar: mancha clara em volta do ponto azul. */
+  .eu-precisao {
+    fill: var(--eu);
+    fill-opacity: 0.12;
+    stroke: var(--eu);
+    stroke-opacity: 0.35;
+    stroke-width: 1;
+  }
+
   .eu-icone {
     background: none;
     border: none;

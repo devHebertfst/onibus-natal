@@ -60,6 +60,9 @@ function esri(servico: string): L.TileLayer {
   );
 }
 
+/** Quanto o ponto azul leva para deslizar até a posição nova do GPS (ms). */
+const EU_DESLIZE_MS = 700;
+
 /**
  * Ônibus visto de cima, com a frente para cima (0° = norte): gira inteiro com
  * o rumo. Amarelo com teto branco e o contorno na cor do sentido; o
@@ -134,6 +137,10 @@ export class Mapa {
   private readonly marcadores = new Map<string, Marcador>();
   private readonly marcadoresPonto = new Map<string, L.Marker>();
   private eu?: L.Marker;
+  /** Círculo da precisão do GPS do passageiro (quanto a posição pode errar). */
+  private euPrecisao?: L.Circle;
+  /** Deslizamento do ponto azul até a posição nova. */
+  private euAnimacao = 0;
   private frota = new Frota();
   private linhaAtual: Linha | null = null;
   private assinaturaTracado = '';
@@ -186,7 +193,10 @@ export class Mapa {
       const pos = this.minhaPosicao();
       if (this.mapa) this.desenharEu(pos);
     });
-    inject(DestroyRef).onDestroy(() => cancelAnimationFrame(this.raf));
+    inject(DestroyRef).onDestroy(() => {
+      cancelAnimationFrame(this.raf);
+      cancelAnimationFrame(this.euAnimacao);
+    });
   }
 
   aoCarregar(mapa: L.Map): void {
@@ -466,14 +476,22 @@ export class Mapa {
     }
   }
 
+  /**
+   * Ponto azul do passageiro, em tempo real: a cada posição nova do GPS ele
+   * desliza até ela (sem saltos), com o círculo da precisão em volta quando
+   * ela passa de 15 m.
+   */
   private desenharEu(pos: Posicao | null): void {
     if (!this.mapa) return;
+    cancelAnimationFrame(this.euAnimacao);
     if (!pos) {
       this.eu?.remove();
+      this.euPrecisao?.remove();
       return;
     }
+    const destino = L.latLng(pos.lat, pos.lng);
     if (!this.eu) {
-      this.eu = L.marker([pos.lat, pos.lng], {
+      this.eu = L.marker(destino, {
         icon: L.divIcon({
           className: 'eu-icone',
           html: '<div class="eu"></div>',
@@ -483,8 +501,39 @@ export class Mapa {
         interactive: false,
         zIndexOffset: -100,
       });
+      this.euPrecisao = L.circle(destino, {
+        radius: 0,
+        className: 'eu-precisao',
+        interactive: false,
+      });
     }
-    this.eu.setLatLng([pos.lat, pos.lng]).addTo(this.mapa);
+    const raio = pos.precisao > 15 ? Math.min(pos.precisao, 500) : 0;
+    this.euPrecisao!.setRadius(raio);
+    if (raio > 0) this.euPrecisao!.addTo(this.mapa);
+    else this.euPrecisao!.remove();
+
+    const naTela = this.mapa.hasLayer(this.eu);
+    const origem = this.eu.getLatLng();
+    this.eu.addTo(this.mapa);
+    // Primeira vez, ou salto grande (mais de 300 m): vai direto.
+    if (!naTela || origem.distanceTo(destino) > 300) {
+      this.eu.setLatLng(destino);
+      this.euPrecisao!.setLatLng(destino);
+      return;
+    }
+    const inicio = performance.now();
+    const passo = (agora: number) => {
+      const k = Math.min(1, (agora - inicio) / EU_DESLIZE_MS);
+      const e = k * (2 - k); // desacelera no fim
+      const p = L.latLng(
+        origem.lat + (destino.lat - origem.lat) * e,
+        origem.lng + (destino.lng - origem.lng) * e,
+      );
+      this.eu!.setLatLng(p);
+      this.euPrecisao!.setLatLng(p);
+      if (k < 1) this.euAnimacao = requestAnimationFrame(passo);
+    };
+    this.euAnimacao = requestAnimationFrame(passo);
   }
 
   private criarMarcador(id: string, lat: number, lng: number): Marcador {
