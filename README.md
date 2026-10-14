@@ -298,8 +298,10 @@ amostragem de GPS; se alguém abrir uma delas, ela entra no ciclo normal.
 mais cobrem ruas por onde passam outras linhas, a partir do índice de
 paradas; ou liste os números (`33,85`). No automático, uma troncal que
 passa 2 rajadas seguidas sem medir nada (sem ônibus rodando naquele
-horário, como uma expressa fora do pico) é trocada pela próxima melhor; as
-trocadas voltam a concorrer na escolha do dia seguinte. Linhas listadas à
+horário, como uma expressa fora do pico, ou uma linha sem GPS na Nubus) é
+trocada pela próxima melhor e fica fora da escolha por 7 dias
+(`COLETA_DESCARTE_DIAS`, guardado no banco), para não gastar de novo o
+começo de cada pico; depois volta a ser testada. Linhas listadas à
 mão nunca são trocadas. `COLETA=false` desliga. `/api/diagnostico` mostra
 em `coleta` as linhas, as trocadas (`descartadas`) e as rajadas, e em
 `transito` quantos pedaços de rua têm medida.

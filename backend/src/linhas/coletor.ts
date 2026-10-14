@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import { CachePersistente } from '../banco/cache-persistente.js';
 import { config } from '../config.js';
 import { ParadasService } from '../paradas/paradas.service.js';
 import type { ItinerarioMalha } from '../trajetos/roteador.js';
@@ -13,7 +14,7 @@ export interface ResumoColeta {
   horas: string;
   /** Linhas lidas pelo coletor (null até a 1ª escolha automática). */
   linhas: string[] | null;
-  /** Trocadas hoje por não terem ônibus andando (voltam na escolha de amanhã). */
+  /** Trocadas por não terem ônibus andando (ficam fora da escolha por uns dias). */
   descartadas: string[];
   ultimaRajada: string | null;
   rajadas: number;
@@ -22,6 +23,8 @@ export interface ResumoColeta {
 const DIA_MS = 24 * 60 * 60_000;
 /** Rajadas seguidas sem nenhuma medida para uma troncal ser trocada. */
 const RAJADAS_SEM_MEDIDA = 2;
+/** Linha → quando foi trocada (ms), guardado no banco. */
+const CHAVE_DESCARTADAS = 'coletor-descartadas:v1';
 
 /**
  * Coletor por amostras das linhas troncais: nas faixas de horário
@@ -35,14 +38,17 @@ const RAJADAS_SEM_MEDIDA = 2;
  *
  * No modo automático, uma troncal que passa 2 rajadas seguidas sem medir
  * nada (sem ônibus rodando naquele horário, como uma expressa fora do pico)
- * dá lugar à próxima melhor candidata. As trocadas voltam a concorrer na
- * escolha do dia seguinte.
+ * dá lugar à próxima melhor candidata. A trocada fica fora da escolha por
+ * 7 dias (guardado no banco, sobrevive ao servidor dormir), para não gastar
+ * de novo o começo de cada pico com ela; depois volta a ser testada, caso
+ * passe a ter ônibus com GPS.
  */
 @Injectable()
 export class ColetorTroncais {
   private readonly logger = new Logger(ColetorTroncais.name);
   private escolhidas?: { linhas: string[]; em: number; auto: boolean };
-  private readonly descartadas = new Set<string>();
+  private readonly descartadas = new Map<string, number>();
+  private descartadasLidas?: Promise<void>;
   private readonly semMedida = new Map<string, number>();
   private ultimaRajada = 0;
   private rajadas = 0;
@@ -55,6 +61,9 @@ export class ColetorTroncais {
     @Optional()
     @Inject('PARAMETROS_COLETA')
     private readonly p: ParametrosColeta = config.coleta,
+    @Optional()
+    @Inject(CachePersistente)
+    private readonly cache: CachePersistente | null = null,
   ) {
     this.faixas = lerFaixas(p.horas);
   }
@@ -102,7 +111,7 @@ export class ColetorTroncais {
       ativa: this.p.ativa,
       horas: this.p.horas,
       linhas: this.escolhidas?.linhas ?? null,
-      descartadas: [...this.descartadas],
+      descartadas: [...this.descartadas.keys()],
       ultimaRajada: this.ultimaRajada
         ? new Date(this.ultimaRajada).toISOString()
         : null,
@@ -132,14 +141,18 @@ export class ColetorTroncais {
   /** Troca as troncais sem ônibus andando pelas próximas melhores. */
   private async trocar(sem: string[], agora: number): Promise<void> {
     for (const n of sem) {
-      this.descartadas.add(n);
+      this.descartadas.set(n, agora);
       this.semMedida.delete(n);
     }
+    await this.cache?.gravar(
+      CHAVE_DESCARTADAS,
+      Object.fromEntries(this.descartadas),
+    );
     try {
       const linhas = escolherTroncais(
         await this.paradas.malha(),
         this.p.quantasAuto,
-        this.descartadas,
+        new Set(this.descartadas.keys()),
       );
       this.escolhidas = {
         linhas,
@@ -156,6 +169,18 @@ export class ColetorTroncais {
     }
   }
 
+  /** As trocadas antes do servidor reiniciar (uma vez só). */
+  private lerDescartadas(): Promise<void> {
+    return (this.descartadasLidas ??= (async () => {
+      const salvas =
+        await this.cache?.ler<Record<string, number>>(CHAVE_DESCARTADAS);
+      for (const [n, em] of Object.entries(salvas ?? {})) {
+        if (typeof em === 'number' && !this.descartadas.has(n))
+          this.descartadas.set(n, em);
+      }
+    })());
+  }
+
   /** As da configuração ou, em "auto", as que mais cobrem ruas em comum. */
   private async linhasDaColeta(agora: number): Promise<string[]> {
     if (this.escolhidas && agora - this.escolhidas.em < DIA_MS)
@@ -170,13 +195,17 @@ export class ColetorTroncais {
       return linhas;
     }
 
-    // Escolha nova a cada dia: as trocadas ontem voltam a concorrer.
-    this.descartadas.clear();
+    // Escolha nova a cada dia; as trocadas há mais de 7 dias voltam a concorrer.
+    await this.lerDescartadas();
+    for (const [n, em] of this.descartadas) {
+      if (agora - em >= this.p.descarteMs) this.descartadas.delete(n);
+    }
     this.semMedida.clear();
     try {
       const linhas = escolherTroncais(
         await this.paradas.malha(),
         this.p.quantasAuto,
+        new Set(this.descartadas.keys()),
       );
       this.escolhidas = { linhas, em: agora, auto: true };
       this.logger.log(`Coletor: troncais escolhidas ${linhas.join(', ')}`);
