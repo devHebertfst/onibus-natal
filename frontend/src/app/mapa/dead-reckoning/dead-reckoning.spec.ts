@@ -2,7 +2,7 @@ import { Linha } from '../../core/linha.models';
 import { Frota } from './frota';
 import { OnibusAnimado } from './onibus-animado';
 import { PerfilVelocidade } from './perfil-velocidade';
-import { preverChegadas } from './previsao';
+import { corrigir, preverChegadas } from './previsao';
 import { Rota, distanciaM } from './rota';
 
 /** Avenida reta de 2 km rumo ao norte, com um ponto a cada 100 m. */
@@ -220,6 +220,24 @@ describe('preverChegadas', () => {
     const b = preverChegadas(frota, 'ida', paradas, 'P1').find((x) => x.onibus === 'B')!;
     expect(b.metros).toBeCloseTo(200, -1);
     expect(b.minutos * 60).toBeCloseTo(10 + 40, -1);
+
+    // O placar viu a conta adiantada em 0,5 min a 2 min da chegada: soma.
+    const ajustada = preverChegadas(frota, 'ida', paradas, 'P1', {
+      minutos: [2, 5],
+      correcaoMin: [-0.5, -0.6],
+    }).find((x) => x.onibus === 'B')!;
+    expect(ajustada.minutos - b.minutos).toBeCloseTo((0.5 * b.minutos) / 2, 5);
+  });
+});
+
+describe('corrigir', () => {
+  const ajuste = { minutos: [2, 5], correcaoMin: [-0.4, -0.6] };
+  it('interpola entre os horizontes e segura o último', () => {
+    expect(corrigir(1, ajuste)).toBeCloseTo(-0.2);
+    expect(corrigir(3.5, ajuste)).toBeCloseTo(-0.5);
+    expect(corrigir(20, ajuste)).toBeCloseTo(-0.6);
+    expect(corrigir(0, ajuste)).toBe(0);
+    expect(corrigir(5, undefined)).toBe(0);
   });
 });
 

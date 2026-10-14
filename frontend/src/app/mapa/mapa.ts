@@ -362,7 +362,15 @@ export class Mapa {
   /** Ônibus a caminho de uma parada, com estimativa de chegada. */
   previsoes(sel: ParadaNoSentido): Previsao[] {
     const it = this.linhaAtual?.itinerarios.find((i) => i.codigo === sel.itinerario);
-    return it ? preverChegadas(this.frota, it.codigo, it.paradas, sel.parada.codigo) : [];
+    return it
+      ? preverChegadas(
+          this.frota,
+          it.codigo,
+          it.paradas,
+          sel.parada.codigo,
+          this.linhaAtual?.ajustePrevisao,
+        )
+      : [];
   }
 
   /** Rumo do traçado na parada, para a seta da placa (graus, 0 = norte). */

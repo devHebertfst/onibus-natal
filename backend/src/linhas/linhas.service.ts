@@ -439,7 +439,12 @@ export class LinhasService {
       const fix = this.velocidade.posicaoAtual(id);
       if (fix) observados.push({ ...fix, id, itinerarios: v.itinerarios });
     }
-    this.placar.observarLinha(itinerariosFinais, observados, agora);
+    this.placar.observarLinha(
+      linha.numero,
+      itinerariosFinais,
+      observados,
+      agora,
+    );
 
     const snapshot: LinhaDto = {
       numero: linha.numero,
@@ -447,6 +452,7 @@ export class LinhasService {
       desatualizado: falhou,
       itinerarios: itinerariosFinais,
       onibus,
+      ajustePrevisao: this.placar.ajuste() ?? undefined,
     };
     linha.snapshot = snapshot;
     linha.snapshotEm = agora;

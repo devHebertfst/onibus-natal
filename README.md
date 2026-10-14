@@ -322,6 +322,23 @@ tarde do que o ônibus chegou), e em `comparacao` a % de vezes em que a nossa
 errou menos que a da Nubus na mesma chegada. O placar perde metade do peso a
 cada 7 dias (mostra o desempenho atual) e fica guardado no banco.
 
+**Correção do viés.** Se a nossa conta erra sempre para o mesmo lado num
+horizonte (por exemplo, o ônibus chega 0,5 min depois do previsto quando
+falta 2 min), o placar transforma esse viés numa correção: cada horizonte
+com 30 chegadas ou mais entra, limitado a 25% do horizonte. Ela vai na
+resposta de cada linha (`ajustePrevisao`) e o app a aplica, interpolando
+entre os horizontes. A correção sai sempre da conta crua (`nossa`); a
+corrigida aparece em `ajustada`, para ver se ela ajuda. `ajuste` mostra a
+correção em uso.
+
+**Onde a previsão erra.** `porDado` separa a conta crua pela origem da maior
+parte da velocidade usada até a parada: `aoVivo` (medida agora pelos ônibus
+da linha), `historico` (típica do horário, ajustada pelo trânsito),
+`mediaLinha` (média da linha nos trechos sem dado) e `padrao` (18 km/h).
+`porLinha` dá o erro médio e o viés de cada linha em % da antecedência
+(juntando os horizontes). Cada trecho de `trechos` traz em `fontes` a origem
+da velocidade dele (`v`, `h`, `t` ou `-`).
+
 O diagnóstico também mostra o atraso medido do GPS (mediana, p90, quanto
 está sendo descontado), por itinerário quanto do traçado já tem velocidade
 medida (`trechos`) e o estado do histórico no banco (`historico`). No app,

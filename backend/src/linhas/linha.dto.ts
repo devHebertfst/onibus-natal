@@ -33,6 +33,24 @@ export interface TrechosDto {
   kmh: (number | null)[];
   /** Média do itinerário inteiro (para trechos sem dado); null se ainda não há. */
   mediaKmh: number | null;
+  /**
+   * De onde veio a velocidade de cada trecho, um caractere por trecho: `v`
+   * medida agora pelos ônibus da linha, `h` típica do histórico (ajustada
+   * pelo trânsito), `t` média típica ajustada pelo trânsito das outras
+   * linhas, `-` sem dado (vale `mediaKmh` ou o padrão). Para o placar.
+   */
+  fontes?: string;
+}
+
+/**
+ * Correção da nossa previsão aprendida com o placar: a `minutos[i]` da
+ * chegada, a previsão costuma errar `correcaoMin[i]` (> 0: chega antes do
+ * previsto). Entre os pontos, interpolação linear; depois do último, o
+ * último. O app subtrai a correção do que calculou.
+ */
+export interface AjustePrevisaoDto {
+  minutos: number[];
+  correcaoMin: number[];
 }
 
 export interface OnibusDto {
@@ -59,6 +77,8 @@ export interface LinhaDto {
   desatualizado: boolean;
   itinerarios: ItinerarioDto[];
   onibus: OnibusDto[];
+  /** Ausente enquanto o placar não tem chegadas suficientes. */
+  ajustePrevisao?: AjustePrevisaoDto;
 }
 
 /** Um ônibus (ou uma viagem da tabela) a caminho da parada. */

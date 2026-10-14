@@ -1,5 +1,6 @@
+import type { CachePersistente } from '../banco/cache-persistente.js';
 import type { ItinerarioDto } from './linha.dto.js';
-import { PlacarPrevisao } from './placar.js';
+import { PlacarPrevisao, corrigir, dadoEntre } from './placar.js';
 
 const M = 1 / 111_195;
 /** Avenida reta de 2 km rumo ao norte, paradas a 600, 1200 e 1800 m. */
@@ -20,12 +21,17 @@ const ida: ItinerarioDto = {
 const T0 = Date.parse('2026-10-13T10:00:00Z');
 
 /** ...mas ele anda a 5 m/s. Uma posição a cada 15 s. */
-function percorrer(placar: PlacarPrevisao, aCada?: (segundos: number) => void) {
+function percorrer(
+  placar: PlacarPrevisao,
+  aCada?: (segundos: number) => void,
+  { id = 'X', t0 = T0, itinerario = ida } = {},
+) {
   for (let s = 0; s <= 420; s += 15) {
-    const t = T0 + s * 1000;
+    const t = t0 + s * 1000;
     placar.observarLinha(
-      [ida],
-      [{ id: 'X', itinerarios: ['ida'], ...em(Math.min(2000, 5 * s)), t }],
+      '33',
+      [itinerario],
+      [{ id, itinerarios: ['ida'], ...em(Math.min(2000, 5 * s)), t }],
       t,
     );
     aCada?.(s);
@@ -67,6 +73,7 @@ describe('PlacarPrevisao', () => {
     for (let s = 0; s <= 300; s += 15) {
       const t = T0 + s * 1000;
       placar.observarLinha(
+        '33',
         [ida],
         [{ id: 'P', itinerarios: ['ida'], ...em(0), t }],
         t,
@@ -77,11 +84,94 @@ describe('PlacarPrevisao', () => {
       const t = T0 + s * 1000;
       const longe = { lat: -5.8 + 5 * s * M, lng: -35.21 };
       placar.observarLinha(
+        '33',
         [ida],
         [{ id: 'L', itinerarios: ['ida'], ...longe, t }],
         t,
       );
     }
     expect(placar.resumo().nossa).toEqual({});
+  });
+
+  it('separa o erro pela origem da velocidade e por linha', () => {
+    const placar = new PlacarPrevisao(null);
+    percorrer(placar); // trechos sem origem: média da linha
+    percorrer(placar, undefined, {
+      id: 'Y',
+      t0: T0 + 3_600_000,
+      itinerario: {
+        ...ida,
+        trechos: { ...ida.trechos!, fontes: 'vvvvvvv' },
+      },
+    });
+    const r = placar.resumo();
+    expect(r.porDado.mediaLinha?.['2'].n).toBeGreaterThanOrEqual(2);
+    expect(r.porDado.aoVivo?.['2'].n).toBeGreaterThanOrEqual(2);
+    expect(r.porDado.historico).toBeUndefined();
+    expect(r.porLinha).toEqual([
+      expect.objectContaining({ linha: '33', viesPct: expect.any(Number) }),
+    ]);
+    // chegou bem depois do previsto: viés negativo, em % da antecedência
+    expect(r.porLinha[0].viesPct).toBeLessThan(-30);
+  });
+
+  it('aprende a correção do viés e mede a previsão corrigida', () => {
+    const placar = new PlacarPrevisao(null);
+    expect(placar.ajuste()).toBeNull();
+    for (let i = 0; i < 30; i++)
+      percorrer(placar, undefined, { id: `X${i}`, t0: T0 + i * 3_600_000 });
+    // viés de ~−2 min a 2 min da chegada, limitado a 25% do horizonte
+    const ajuste = placar.ajuste()!;
+    expect(ajuste.minutos).toContain(2);
+    expect(ajuste.correcaoMin[ajuste.minutos.indexOf(2)]).toBe(-0.5);
+    const r = placar.resumo();
+    expect(r.ajuste).toEqual(ajuste);
+    // depois da correção, a ajustada erra menos que a crua
+    expect(r.ajustada['2'].erroMedioMin).toBeLessThan(
+      r.nossa['2'].erroMedioMin,
+    );
+    expect(r.ajustada['2'].viesMin).toBeGreaterThan(r.nossa['2'].viesMin);
+  });
+
+  it('lê o placar gravado antes da correção', async () => {
+    const antigo = {
+      desde: T0,
+      em: T0,
+      fontes: { nossa: {}, nubus: {} },
+      pares: {},
+    };
+    const placar = new PlacarPrevisao({
+      ler: async () => antigo,
+    } as unknown as CachePersistente);
+    await placar.onModuleInit();
+    percorrer(placar);
+    const r = placar.resumo();
+    expect(r.nossa['2'].n).toBeGreaterThanOrEqual(2);
+    expect(r.ajustada['2'].n).toBeGreaterThanOrEqual(2);
+    expect(r.porLinha).toHaveLength(1);
+  });
+});
+
+describe('corrigir', () => {
+  const ajuste = { minutos: [2, 5], correcaoMin: [-0.4, -0.6] };
+  it('interpola entre os horizontes e segura o último', () => {
+    expect(corrigir(1, ajuste)).toBeCloseTo(-0.2);
+    expect(corrigir(3.5, ajuste)).toBeCloseTo(-0.5);
+    expect(corrigir(20, ajuste)).toBeCloseTo(-0.6);
+    expect(corrigir(0, ajuste)).toBe(0);
+    expect(corrigir(5, null)).toBe(0);
+  });
+});
+
+describe('dadoEntre', () => {
+  const trechos = { tamanhoM: 300, kmh: [], mediaKmh: 20, fontes: 'vhhh--' };
+  it('diz de onde veio a maior parte da velocidade', () => {
+    expect(dadoEntre(trechos, 0, 1800)).toBe('historico');
+    expect(dadoEntre(trechos, 0, 300)).toBe('aoVivo');
+    expect(dadoEntre(trechos, 1200, 1800)).toBe('mediaLinha');
+    expect(dadoEntre({ ...trechos, mediaKmh: null }, 1200, 1800)).toBe(
+      'padrao',
+    );
+    expect(dadoEntre(undefined, 0, 600)).toBe('padrao');
   });
 });
