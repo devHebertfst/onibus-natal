@@ -274,8 +274,9 @@ Para ligar no Neon: crie um projeto em neon.tech (região perto do backend),
 copie a *connection string* (`postgresql://…?sslmode=require`) e coloque em
 `DATABASE_URL` nas variáveis de ambiente do Render. No plano free o Render
 dorme após ~15 min sem acessos, e dormindo ninguém coleta posições; um ping
-externo (UptimeRobot, cron-job.org) em `/api/linhas` a cada 10 min o mantém
-acordado.
+externo (UptimeRobot, cron-job.org) em `/api/saude` a cada 10 min o mantém
+acordado. Essa rota só responde `ok` (2 bytes): o cron-job.org aborta
+respostas grandes e desativa o job depois de várias falhas.
 
 **Trânsito compartilhado entre linhas.** Linhas diferentes param em pontos
 diferentes, então a velocidade de uma não serve direto para outra. O que se

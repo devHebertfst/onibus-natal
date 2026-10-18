@@ -3,6 +3,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { BancoModule } from './banco/banco.module.js';
 import { LinhasModule } from './linhas/linhas.module.js';
 import { ParadasModule } from './paradas/paradas.module.js';
+import { SaudeController } from './saude.controller.js';
 import { TrajetosModule } from './trajetos/trajetos.module.js';
 
 @Module({
@@ -13,5 +14,6 @@ import { TrajetosModule } from './trajetos/trajetos.module.js';
     ParadasModule,
     TrajetosModule,
   ],
+  controllers: [SaudeController],
 })
 export class AppModule {}
