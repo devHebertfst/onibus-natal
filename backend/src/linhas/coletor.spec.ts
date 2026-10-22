@@ -75,6 +75,7 @@ describe('ColetorTroncais', () => {
     linhas = 'auto',
     rende: Record<string, number> = {},
     banco = new Map<string, unknown>(),
+    horas = '6-9',
   ) => {
     const lidas: string[] = [];
     const coletor = new ColetorTroncais(
@@ -91,7 +92,7 @@ describe('ColetorTroncais', () => {
         ativa: true,
         linhas,
         quantasAuto: 1,
-        horas: '6-9',
+        horas,
         pausaMs: 0,
       },
       {
@@ -130,6 +131,22 @@ describe('ColetorTroncais', () => {
     lidas.length = 0;
     await coletor.tique(SETE_DA_MANHA + 45 * MIN);
     expect(lidas).toEqual([r.linhas![0], r.linhas![0]]);
+  });
+
+  it('fora do pico de dia útil, a linha vazia sai só até amanhã', async () => {
+    const DIA = 24 * 60 * MIN;
+    const OITO_DA_NOITE = SETE_DA_MANHA + 13 * 60 * MIN; // sexta, 20h
+    const { coletor } = novo('auto', { A: 0 }, undefined, '6-22');
+    for (let i = 0; i < 3; i++)
+      await coletor.tique(OITO_DA_NOITE + i * 15 * MIN);
+    expect(coletor.resumo()).toMatchObject({
+      descartadas: [],
+      trocadasHoje: ['A'],
+    });
+    expect(coletor.resumo().linhas).not.toContain('A');
+    // no dia seguinte (sábado, também fora do pico de dia útil) volta
+    await coletor.tique(OITO_DA_NOITE + DIA);
+    expect(coletor.resumo()).toMatchObject({ linhas: ['A'], trocadasHoje: [] });
   });
 
   it('não troca a troncal com ônibus parados (tem GPS, só não andou)', async () => {

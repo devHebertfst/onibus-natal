@@ -142,6 +142,11 @@ export const config = {
     quantasAuto: num(process.env.COLETA_QUANTAS, 10),
     /** Faixas de horário de Natal, "início-fim" em horas (fim exclusivo). */
     horas: process.env.COLETA_HORAS ?? '6-9,16-19',
+    /**
+     * Pico dos dias úteis (horas de Natal): sem nenhum ônibus com GPS aqui, a
+     * linha não tem GPS e sai por `descarteMs`; fora dele, sai só até amanhã.
+     */
+    pico: process.env.COLETA_PICO ?? '6-9,16-19',
     intervaloMs: num(process.env.COLETA_INTERVALO_MS, 15 * 60_000),
     /** Entre as duas leituras de cada rajada (o GPS muda a cada ~30 s). */
     pausaMs: 60_000,

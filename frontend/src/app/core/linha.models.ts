@@ -26,17 +26,6 @@ export interface Trechos {
   mediaKmh: number | null;
 }
 
-/**
- * Espelho de `AjustePrevisaoDto`: a `minutos[i]` da chegada, a nossa conta
- * costuma errar `correcaoMin[i]` (> 0: o ônibus chega antes do previsto).
- */
-export interface AjustePrevisao {
-  minutos: number[];
-  correcaoMin: number[];
-  /** Correção própria da linha (fração da previsão); vale no lugar da curva. */
-  fracaoLinha?: number;
-}
-
 export interface Onibus {
   id: string;
   lat: number;
@@ -53,8 +42,6 @@ export interface Linha {
   desatualizado: boolean;
   itinerarios: Itinerario[];
   onibus: Onibus[];
-  /** Correção aprendida pelo placar do backend (ausente sem dados ou em backend antigo). */
-  ajustePrevisao?: AjustePrevisao;
 }
 
 /** Espelho de `ChegadaDto`: um ônibus (ou uma viagem da tabela) a caminho da parada. */

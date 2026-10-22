@@ -464,7 +464,6 @@ export class LinhasService {
       desatualizado: falhou,
       itinerarios: itinerariosFinais,
       onibus,
-      ajustePrevisao: this.placar.ajuste(linha.numero) ?? undefined,
     };
     linha.snapshot = snapshot;
     linha.snapshotEm = agora;

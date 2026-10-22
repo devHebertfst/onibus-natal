@@ -13,6 +13,10 @@ import { ehFeriado } from './feriados.js';
 import { ArmazemTrechos, type RegistroTrecho } from './armazem-trechos.js';
 
 export const ARMAZEM_TRECHOS = Symbol('ARMAZEM_TRECHOS');
+/** Primeira janela mais larga: até isso (min) antes e depois do horário. */
+const AMPLO_MIN = 120;
+/** Medida mínima de um trecho numa janela para ela valer (a do trecho). */
+const MINIMO_M = config.trechos.tamanhoM * config.trechos.coberturaMin;
 
 export type ParametrosHistorico = typeof config.historico;
 
@@ -22,6 +26,12 @@ interface Carga {
   em: number;
   /** faixa → trecho → percurso acumulado. */
   faixas: Map<number, Map<number, PercursoTipico>>;
+  /** O último `tipico` calculado (muda só com a faixa ou numa releitura). */
+  calculado?: {
+    faixa: number;
+    faixas: Carga['faixas'];
+    valor: Map<number, PercursoTipico>;
+  };
   /** Resolve quando a leitura termina (com sucesso ou não). */
   pronta: Promise<void>;
 }
@@ -97,9 +107,13 @@ export class HistoricoTrechos implements FonteHistorico, OnApplicationShutdown {
   }
 
   /**
-   * Percurso típico de cada trecho no horário de `agora`: a faixa atual mais
-   * meio peso das vizinhas (suaviza e cobre faixas com pouca medida). Na 1ª
-   * chamada dispara a leitura do banco e devolve `undefined` até ela chegar.
+   * Percurso típico de cada trecho no horário de `agora`, do mesmo tipo de
+   * dia: a faixa atual mais meio peso das vizinhas (suaviza e cobre faixas
+   * com pouca medida). Trecho sem medida bastante nessa janela usa as faixas
+   * até ±2 h e, sem elas, o dia todo (marcado `amplo`): o ritmo daquele
+   * pedaço de rua noutro horário erra menos que a média da linha inteira.
+   * Na 1ª chamada dispara a leitura do banco e devolve `undefined` até ela
+   * chegar.
    */
   tipico(
     itinerario: string,
@@ -110,21 +124,50 @@ export class HistoricoTrechos implements FonteHistorico, OnApplicationShutdown {
     const carga = this.cargaDe(itinerario, assinatura, agora);
     if (carga.faixas.size === 0) return undefined;
     const { faixa } = horarioLocal(agora, this.p);
+    const c = carga.calculado;
+    if (c && c.faixa === faixa && c.faixas === carga.faixas) return c.valor;
 
     const faixasNoDia = (24 * 60) / this.p.faixaMin;
-    const resultado = new Map<number, PercursoTipico>();
-    for (const [f, peso] of [
-      [faixa, 1],
-      [(faixa + faixasNoDia - 1) % faixasNoDia, 0.5],
-      [(faixa + 1) % faixasNoDia, 0.5],
-    ]) {
-      for (const [k, v] of carga.faixas.get(f) ?? []) {
-        const r = resultado.get(k) ?? { metros: 0, segundos: 0 };
-        r.metros += v.metros * peso;
-        r.segundos += v.segundos * peso;
-        resultado.set(k, r);
+    const somar = (pesos: [deslocamento: number, peso: number][]) => {
+      const soma = new Map<number, PercursoTipico>();
+      for (const [d, peso] of pesos) {
+        const f = (((faixa + d) % faixasNoDia) + faixasNoDia) % faixasNoDia;
+        for (const [k, v] of carga.faixas.get(f) ?? []) {
+          const r = soma.get(k) ?? { metros: 0, segundos: 0 };
+          r.metros += v.metros * peso;
+          r.segundos += v.segundos * peso;
+          soma.set(k, r);
+        }
+      }
+      return soma;
+    };
+    const raio = Math.round(AMPLO_MIN / this.p.faixaMin);
+    const janelas = [
+      somar([
+        [0, 1],
+        [-1, 0.5],
+        [1, 0.5],
+      ]),
+      somar(
+        Array.from(
+          { length: 2 * raio + 1 },
+          (_, i) => [i - raio, 1] as [number, number],
+        ),
+      ),
+      somar([...carga.faixas.keys()].map((f) => [f - faixa, 1])),
+    ];
+    // Trecho por trecho, a 1ª janela com medida bastante.
+    const [proxima, ...largas] = janelas;
+    const resultado = new Map(proxima);
+    for (const janela of largas) {
+      for (const [k, v] of janela) {
+        const atual = resultado.get(k);
+        if (atual && atual.metros >= MINIMO_M) continue;
+        if (v.metros > (atual?.metros ?? 0))
+          resultado.set(k, { ...v, amplo: true });
       }
     }
+    carga.calculado = { faixa, faixas: carga.faixas, valor: resultado };
     return resultado;
   }
 

@@ -89,7 +89,7 @@ describe('HistoricoTrechos', () => {
     const h = new HistoricoTrechos(armazem);
     h.registrar('101', 'A', 0, 200, 20, SEXTA_7H);
     h.registrar('101', 'A', 0, 100, 10, SEXTA_7H + 60_000); // mesma faixa
-    h.registrar('101', 'A', 1, 300, 60, SEXTA_7H + 30 * 60_000); // faixa seguinte
+    h.registrar('101', 'A', 1, 400, 80, SEXTA_7H + 30 * 60_000); // faixa seguinte
     expect(h.resumo()).toMatchObject({ ativo: true, pendentes: 2 });
     await h.gravar();
     expect(h.resumo().pendentes).toBe(0);
@@ -101,7 +101,33 @@ describe('HistoricoTrechos', () => {
     const tipico = h.tipico('101', 'A', SEXTA_7H)!;
     expect(perto(tipico.get(0))).toEqual({ metros: 300, segundos: 30 });
     // a faixa vizinha entra com meio peso
-    expect(perto(tipico.get(1))).toEqual({ metros: 150, segundos: 30 });
+    expect(perto(tipico.get(1))).toEqual({ metros: 200, segundos: 40 });
+    expect(tipico.get(1)!.amplo).toBeUndefined();
+  });
+
+  it('trecho sem medida no horário usa o mesmo trecho noutro horário', async () => {
+    const { armazem } = await bancoEmMemoria();
+    const h = new HistoricoTrechos(armazem);
+    h.registrar('101', 'A', 0, 300, 30, SEXTA_7H); // no horário
+    h.registrar('101', 'A', 1, 300, 60, SEXTA_7H + 90 * 60_000); // 1h30 depois
+    h.registrar('101', 'A', 2, 300, 90, SEXTA_7H + 10 * 3_600_000); // à noite
+    h.registrar('101', 'A', 3, 300, 30, SEXTA_7H + 10 * 3_600_000);
+    h.registrar('101', 'A', 3, 300, 30, SEXTA_7H + 20 * 60_000); // pouco no horário
+    await h.gravar();
+    h.tipico('101', 'A', SEXTA_7H);
+    await vi.waitFor(() => expect(h.resumo().itinerariosCarregados).toBe(1));
+    const tipico = h.tipico('101', 'A', SEXTA_7H)!;
+    expect(tipico.get(0)!.amplo).toBeUndefined();
+    // até ±2 h
+    expect(tipico.get(1)).toMatchObject({ amplo: true });
+    expect(perto(tipico.get(1))).toEqual({ metros: 300, segundos: 60 });
+    // o dia todo
+    expect(perto(tipico.get(2))).toEqual({ metros: 300, segundos: 90 });
+    // meio peso no horário (150 m) não basta: em ±2 h ela vale inteira
+    expect(tipico.get(3)).toMatchObject({ amplo: true });
+    expect(perto(tipico.get(3))).toEqual({ metros: 300, segundos: 30 });
+    // a mesma consulta no mesmo horário reaproveita a conta
+    expect(h.tipico('101', 'A', SEXTA_7H + 60_000)).toBe(tipico);
   });
 
   it('se o banco falhar, guarda as medidas para a próxima tentativa', async () => {
@@ -143,6 +169,15 @@ describe('VelocidadeTrechos com histórico', () => {
     for (const k of [0, 1, 2]) {
       h.registrar('ida', assinatura, k, 300, 60, SEXTA_7H - 7 * DIA);
     }
+    // e o trecho 3 só à noite, a 9 km/h
+    h.registrar(
+      'ida',
+      assinatura,
+      3,
+      300,
+      120,
+      SEXTA_7H - 7 * DIA + 12 * 3_600_000,
+    );
     await h.gravar();
 
     const v = new VelocidadeTrechos(config.trechos, h);
@@ -155,7 +190,9 @@ describe('VelocidadeTrechos com histórico', () => {
     v.observar('ida', 'A', em(300), SEXTA_7H);
     v.observar('ida', 'A', em(600), SEXTA_7H + 30_000);
     const t = v.velocidades('ida', SEXTA_7H + 30_000)!;
-    expect(t.kmh.slice(0, 4)).toEqual([18, 36, 18, null]);
+    // o trecho 3, sem medida neste horário, usa o da noite
+    expect(t.kmh.slice(0, 5)).toEqual([18, 36, 18, 9, null]);
+    expect(t.fontes!.slice(0, 5)).toBe('hvha-');
     expect(t.mediaKmh).toBe(36); // a média ao vivo vale mais que a típica
 
     // e o que foi medido agora vai para o histórico

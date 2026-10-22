@@ -262,7 +262,11 @@ horário em vez de 18 km/h, e as medidas ao vivo vão tomando o lugar.
 - Grava em lote a cada 5 min (`HISTORICO_GRAVAR_MS`) e ao desligar; lê o
   histórico de cada itinerário uma vez (a 1ª atualização da linha espera
   até 2 s por ele) e relê a cada 6 h. A faixa atual vale inteira e as
-  vizinhas com meio peso.
+  vizinhas com meio peso. Trecho sem medida bastante nessa janela usa o
+  mesmo trecho até ±2 h dali e, sem isso, em qualquer horário do mesmo tipo
+  de dia: o ritmo daquele pedaço de rua noutro horário erra bem menos que a
+  média da linha inteira (no placar, a 15 min da chegada, 2,2 min de erro
+  com histórico contra 6,2 com a média da linha).
 - Medidas antigas perdem metade do peso a cada 14 dias. Se o traçado do
   itinerário mudar, o histórico dele recomeça.
 - Tabela `velocidade_trecho`, criada sozinha na 1ª conexão.
@@ -300,12 +304,16 @@ mais cobrem ruas por onde passam outras linhas, a partir do índice de
 paradas; ou liste os números (`33,85`). No automático, uma troncal que
 passa 3 rajadas seguidas sem nenhum ônibus com GPS (linha sem GPS na Nubus,
 ou sem ônibus rodando naquele horário, como uma expressa fora do pico) é
-trocada pela próxima melhor e fica fora da escolha por 7 dias
-(`COLETA_DESCARTE_DIAS`, guardado no banco), para não gastar de novo o
-começo de cada pico; depois volta a ser testada. Ônibus parados (no
-terminal, por exemplo) não contam: a linha tem GPS, só não andou. Linhas listadas à
-mão nunca são trocadas. `COLETA=false` desliga. `/api/diagnostico` mostra
-em `coleta` as linhas, as trocadas (`descartadas`) e as rajadas, e em
+trocada pela próxima melhor. Se isso acontece no pico de um dia útil
+(`COLETA_PICO`, padrão `6-9,16-19`), quando toda linha regular roda, a
+linha não tem GPS: fica fora da escolha por 7 dias (`COLETA_DESCARTE_DIAS`,
+guardado no banco) e depois volta a ser testada. Fora do pico (fim da
+noite, fim de semana) ela só não está rodando agora: sai só até a escolha
+do dia seguinte. Ônibus parados (no terminal, por exemplo) não contam: a
+linha tem GPS, só não andou. Linhas listadas à mão nunca são trocadas.
+`COLETA=false` desliga. `/api/diagnostico` mostra em `coleta` as linhas,
+as sem GPS (`descartadas`), as fora até amanhã (`trocadasHoje`) e as
+rajadas, e em
 `transito` quantos pedaços de rua têm medida.
 
 **Medir a precisão.** O backend mantém um placar da previsão de chegada
@@ -324,29 +332,20 @@ tarde do que o ônibus chegou), e em `comparacao` a % de vezes em que a nossa
 errou menos que a da Nubus na mesma chegada. O placar perde metade do peso a
 cada 7 dias (mostra o desempenho atual) e fica guardado no banco.
 
-**Correção do viés.** Se a nossa conta erra sempre para o mesmo lado, o
-placar transforma esse viés numa correção, sempre pelo viés **mediano** (a
-média se deixa levar pelos poucos ônibus que atrasam muito, e corrigir por
-ela piora as previsões que já acertavam):
-- geral, por horizonte com 30 chegadas ou mais, limitada a 25% do horizonte
-  e interpolada entre os horizontes;
-- por linha, com 50 chegadas ou mais: uma fração da previsão (a 105 chega
-  50% depois do previsto → soma 50%), limitada entre dobrar e tirar um
-  terço, que vale no lugar da geral.
+Uma correção automática do viés, aprendida com o placar (pela média, depois
+pela mediana e por linha), foi testada de 14 a 22/10/2026 e saiu: não
+reduziu o erro em nenhuma antecedência. O viés não é o problema; o erro vem
+da dispersão, e o que mais o reduz é ter histórico do trecho.
 
-Ela vai na resposta de cada linha (`ajustePrevisao`) e o app a aplica. A
-correção sai sempre da conta crua (`nossa`); a corrigida aparece em
-`ajustada`, para ver se ela ajuda. `ajuste` mostra a correção geral em uso;
-`viesMedianoMin` (por horizonte) e, em `porLinha`, `viesMedianoPct` e
-`correcaoPct` mostram de onde ela sai.
-
-**Onde a previsão erra.** `porDado` separa a conta crua pela origem da maior
+**Onde a previsão erra.** `porDado` separa a previsão pela origem da maior
 parte da velocidade usada até a parada: `aoVivo` (medida agora pelos ônibus
 da linha), `historico` (típica do horário, ajustada pelo trânsito),
-`mediaLinha` (média da linha nos trechos sem dado) e `padrao` (18 km/h).
-`porLinha` dá o erro médio e o viés de cada linha em % da antecedência
-(juntando os horizontes). Cada trecho de `trechos` traz em `fontes` a origem
-da velocidade dele (`v`, `h`, `t` ou `-`).
+`historicoAmplo` (típica do mesmo trecho noutro horário), `mediaLinha`
+(média da linha nos trechos sem dado) e `padrao` (18 km/h). `porLinha` dá o
+erro médio e o viés (médio e mediano) de cada linha em % da antecedência
+(juntando os horizontes); `viesMedianoMin` dá o viés da maioria em cada
+horizonte. Cada trecho de `trechos` traz em `fontes` a origem da velocidade
+dele (`v`, `h`, `a`, `t` ou `-`).
 
 O diagnóstico também mostra o atraso medido do GPS (mediana, p90, quanto
 está sendo descontado), por itinerário quanto do traçado já tem velocidade

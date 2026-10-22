@@ -10,6 +10,11 @@ export type ParametrosTrechos = typeof config.trechos;
 export interface PercursoTipico {
   metros: number;
   segundos: number;
+  /**
+   * Veio de horários mais longe do atual (até ±2 h, ou o dia todo), porque
+   * o horário atual não tinha medida bastante nesse trecho.
+   */
+  amplo?: boolean;
 }
 
 /**
@@ -235,17 +240,23 @@ export class VelocidadeTrechos {
     }
     const minimoM = this.p.tamanhoM * this.p.coberturaMin;
 
-    // O típico deste dia e horário, trecho a trecho (do histórico).
+    // O típico deste dia e horário, trecho a trecho (do histórico); onde o
+    // horário não tem medida, o do mesmo trecho noutro horário (`amplo`).
     const tipicoKmh: (number | null)[] = vivo.map(() => null);
+    const amplo: boolean[] = vivo.map(() => false);
     let metrosTipicos = 0;
     let segundosTipicos = 0;
     for (const [k, v] of this.historico?.tipico(codigo, it.assinatura, agora) ??
       []) {
       if (k >= vivo.length || v.segundos <= 0) continue;
-      metrosTipicos += v.metros;
-      segundosTipicos += v.segundos;
-      if (v.metros / this.tamanhoDo(it, k) >= this.p.coberturaMin)
+      if (!v.amplo) {
+        metrosTipicos += v.metros;
+        segundosTipicos += v.segundos;
+      }
+      if (v.metros / this.tamanhoDo(it, k) >= this.p.coberturaMin) {
         tipicoKmh[k] = (v.metros / v.segundos) * 3.6;
+        amplo[k] = !!v.amplo;
+      }
     }
     const mediaTipica = media(metrosTipicos, segundosTipicos, minimoM);
 
@@ -263,7 +274,14 @@ export class VelocidadeTrechos {
         agora,
       );
       const base = tipicoKmh[k] ?? (fator !== undefined ? mediaTipica : null);
-      fontes += tipicoKmh[k] !== null ? 'h' : base !== null ? 't' : '-';
+      fontes +=
+        tipicoKmh[k] !== null
+          ? amplo[k]
+            ? 'a'
+            : 'h'
+          : base !== null
+            ? 't'
+            : '-';
       return base === null ? null : umaCasa(base * (fator ?? 1));
     });
 
@@ -311,6 +329,8 @@ export class VelocidadeTrechos {
         this.transito &&
         normal &&
         normal.segundos > 0 &&
+        // Típico de outro horário não diz se agora está lento ou não.
+        !normal.amplo &&
         normal.metros / this.tamanhoDo(it, k) >= this.p.coberturaMin
       ) {
         const razao = coberto / gasto / (normal.metros / normal.segundos);

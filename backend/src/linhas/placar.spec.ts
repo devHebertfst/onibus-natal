@@ -1,6 +1,6 @@
 import type { CachePersistente } from '../banco/cache-persistente.js';
 import type { ItinerarioDto } from './linha.dto.js';
-import { PlacarPrevisao, corrigir, dadoEntre, mediana } from './placar.js';
+import { PlacarPrevisao, dadoEntre, mediana } from './placar.js';
 
 const M = 1 / 111_195;
 /** Avenida reta de 2 km rumo ao norte, paradas a 600, 1200 e 1800 m. */
@@ -115,29 +115,11 @@ describe('PlacarPrevisao', () => {
     expect(r.porLinha[0].viesPct).toBeLessThan(-30);
   });
 
-  it('aprende a correção do viés e mede a previsão corrigida', () => {
-    const placar = new PlacarPrevisao(null);
-    expect(placar.ajuste()).toBeNull();
-    for (let i = 0; i < 30; i++)
-      percorrer(placar, undefined, { id: `X${i}`, t0: T0 + i * 3_600_000 });
-    // viés de ~−2 min a 2 min da chegada, limitado a 25% do horizonte
-    const ajuste = placar.ajuste()!;
-    expect(ajuste.minutos).toContain(2);
-    expect(ajuste.correcaoMin[ajuste.minutos.indexOf(2)]).toBe(-0.5);
-    const r = placar.resumo();
-    expect(r.ajuste).toEqual(ajuste);
-    // depois da correção, a ajustada erra menos que a crua
-    expect(r.ajustada['2'].erroMedioMin).toBeLessThan(
-      r.nossa['2'].erroMedioMin,
-    );
-    expect(r.ajustada['2'].viesMin).toBeGreaterThan(r.nossa['2'].viesMin);
-  });
-
-  it('lê o placar gravado antes da correção', async () => {
+  it('lê o placar gravado antes das divisões ou com a correção (que saiu)', async () => {
     const antigo = {
       desde: T0,
       em: T0,
-      fontes: { nossa: {}, nubus: {} },
+      fontes: { nossa: {}, ajustada: {}, nubus: {} },
       pares: {},
     };
     const placar = new PlacarPrevisao({
@@ -147,41 +129,12 @@ describe('PlacarPrevisao', () => {
     percorrer(placar);
     const r = placar.resumo();
     expect(r.nossa['2'].n).toBeGreaterThanOrEqual(2);
-    expect(r.ajustada['2'].n).toBeGreaterThanOrEqual(2);
+    expect(r).not.toHaveProperty('ajustada');
     expect(r.porLinha).toHaveLength(1);
   });
 });
 
-describe('correção pelo viés mediano', () => {
-  /** Placar gravado com os histogramas dados. */
-  const comHistogramas = async (
-    hist2: number[],
-    linhas: Record<string, number[]>,
-  ) => {
-    const soma = (h: number[]) => h.reduce((a, b) => a + b, 0);
-    const salvo = {
-      desde: T0,
-      em: Date.now(),
-      fontes: {
-        nossa: { '2': { n: soma(hist2), somaAbs: 0, soma: 0, hist: hist2 } },
-        ajustada: {},
-        nubus: {},
-      },
-      pares: {},
-      porDado: {},
-      porLinha: Object.fromEntries(
-        Object.entries(linhas).map(([l, hist]) => [
-          l,
-          { n: soma(hist), somaAbs: 0, soma: 0, hist },
-        ]),
-      ),
-    };
-    const placar = new PlacarPrevisao({
-      ler: async () => salvo,
-    } as unknown as CachePersistente);
-    await placar.onModuleInit();
-    return placar;
-  };
+describe('viés mediano', () => {
   /** 81 caixas, com `n` na caixa `desvio` caixas longe do zero. */
   const hist = (...pontos: [desvio: number, n: number][]) => {
     const h = Array.from({ length: 81 }, () => 0);
@@ -189,36 +142,31 @@ describe('correção pelo viés mediano', () => {
     return h;
   };
 
-  it('não corrige quando só alguns poucos atrasam muito', async () => {
+  it('mostra o viés da maioria, que a média esconde', async () => {
     // 40 chegadas certas e 10 com 10 min de atraso: a média puxa, a mediana não
-    const placar = await comHistogramas(hist([0, 40], [-20, 10]), {});
-    const ajuste = placar.ajuste()!;
-    expect(ajuste.minutos).toEqual([2]);
-    expect(Math.abs(ajuste.correcaoMin[0])).toBeLessThan(0.1);
-    // a média diria −2 min
-    expect(placar.resumo().nossa['2'].viesMedianoMin).toBeCloseTo(-0.1, 1);
-  });
-
-  it('a linha com chegadas suficientes tem correção própria, limitada', async () => {
-    const placar = await comHistogramas(hist([-1, 40]), {
-      lenta: hist([-10, 60]), // chega 50% depois do previsto
-      muitoLenta: hist([-36, 60]), // 180% depois: limitada a dobrar
-      pouca: hist([-10, 20]), // poucas chegadas: usa a geral
-    });
-    expect(placar.ajuste('lenta')!.fracaoLinha).toBeCloseTo(-0.5);
-    expect(placar.ajuste('muitoLenta')!.fracaoLinha).toBe(-1);
-    expect(placar.ajuste('pouca')!.fracaoLinha).toBeUndefined();
-    expect(placar.ajuste('pouca')!.correcaoMin[0]).toBeCloseTo(-0.5);
-    expect(placar.resumo().porLinha).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          linha: 'lenta',
-          viesMedianoPct: -50,
-          correcaoPct: -50,
-        }),
-        expect.objectContaining({ linha: 'pouca', correcaoPct: null }),
-      ]),
-    );
+    const h2 = hist([0, 40], [-20, 10]);
+    const lenta = hist([-10, 60]); // chega 50% depois do previsto
+    const salvo = {
+      desde: T0,
+      em: Date.now(),
+      fontes: {
+        nossa: { '2': { n: 50, somaAbs: 6e6, soma: -6e6, hist: h2 } },
+        nubus: {},
+      },
+      pares: {},
+      porDado: {},
+      porLinha: { lenta: { n: 60, somaAbs: 30, soma: -30, hist: lenta } },
+    };
+    const placar = new PlacarPrevisao({
+      ler: async () => salvo,
+    } as unknown as CachePersistente);
+    await placar.onModuleInit();
+    const r = placar.resumo();
+    expect(r.nossa['2'].viesMin).toBe(-2);
+    expect(r.nossa['2'].viesMedianoMin).toBeCloseTo(-0.1, 1);
+    expect(r.porLinha).toEqual([
+      { linha: 'lenta', n: 60, erroPct: 50, viesPct: -50, viesMedianoPct: -50 },
+    ]);
   });
 });
 
@@ -231,23 +179,11 @@ describe('mediana', () => {
   });
 });
 
-describe('corrigir', () => {
-  const ajuste = { minutos: [2, 5], correcaoMin: [-0.4, -0.6] };
-  it('interpola entre os horizontes e segura o último', () => {
-    expect(corrigir(1, ajuste)).toBeCloseTo(-0.2);
-    expect(corrigir(3.5, ajuste)).toBeCloseTo(-0.5);
-    expect(corrigir(20, ajuste)).toBeCloseTo(-0.6);
-    expect(corrigir(0, ajuste)).toBe(0);
-    expect(corrigir(5, null)).toBe(0);
-    // a linha com correção própria: fração da previsão, no lugar da curva
-    expect(corrigir(10, { ...ajuste, fracaoLinha: -0.5 })).toBeCloseTo(-5);
-  });
-});
-
 describe('dadoEntre', () => {
-  const trechos = { tamanhoM: 300, kmh: [], mediaKmh: 20, fontes: 'vhhh--' };
+  const trechos = { tamanhoM: 300, kmh: [], mediaKmh: 20, fontes: 'vhhh--aa' };
   it('diz de onde veio a maior parte da velocidade', () => {
     expect(dadoEntre(trechos, 0, 1800)).toBe('historico');
+    expect(dadoEntre(trechos, 1800, 2400)).toBe('historicoAmplo');
     expect(dadoEntre(trechos, 0, 300)).toBe('aoVivo');
     expect(dadoEntre(trechos, 1200, 1800)).toBe('mediaLinha');
     expect(dadoEntre({ ...trechos, mediaKmh: null }, 1200, 1800)).toBe(

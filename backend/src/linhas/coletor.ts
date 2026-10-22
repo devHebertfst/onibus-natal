@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { CachePersistente } from '../banco/cache-persistente.js';
 import { config } from '../config.js';
+import { horarioLocal } from '../historico/historico-trechos.js';
 import { ParadasService } from '../paradas/paradas.service.js';
 import type { ItinerarioMalha } from '../trajetos/roteador.js';
 import { quadrasDoTracado } from './celulas.js';
@@ -18,8 +19,10 @@ export interface ResumoColeta {
   horas: string;
   /** Linhas lidas pelo coletor (null até a 1ª escolha automática). */
   linhas: string[] | null;
-  /** Trocadas por não terem ônibus com GPS (ficam fora da escolha por uns dias). */
+  /** Sem nenhum ônibus com GPS no pico de dia útil: fora da escolha por 7 dias. */
   descartadas: string[];
+  /** Sem ônibus rodando agora (fora do pico, fim de semana): fora até amanhã. */
+  trocadasHoje: string[];
   ultimaRajada: string | null;
   rajadas: number;
 }
@@ -27,9 +30,9 @@ export interface ResumoColeta {
 const DIA_MS = 24 * 60 * 60_000;
 /** Rajadas seguidas sem nenhum ônibus com GPS para uma troncal ser trocada. */
 const RAJADAS_SEM_ONIBUS = 3;
-/** Linha → quando foi trocada (ms), guardado no banco. */
-// v2: a regra mudou (sem ônibus com GPS, não sem medida); as de antes voltam.
-const CHAVE_DESCARTADAS = 'coletor-descartadas:v2';
+/** Linha → quando foi descartada (ms), guardado no banco. */
+// v3: só o pico de dia útil descarta por 7 dias; as descartadas antes voltam.
+const CHAVE_DESCARTADAS = 'coletor-descartadas:v3';
 
 /**
  * Coletor por amostras das linhas troncais: nas faixas de horário
@@ -45,10 +48,13 @@ const CHAVE_DESCARTADAS = 'coletor-descartadas:v2';
  * ônibus com GPS (linha sem GPS na Nubus, ou sem ônibus rodando naquele
  * horário, como uma expressa fora do pico) dá lugar à próxima melhor
  * candidata. Ônibus parados (no terminal, por exemplo) não contam como
- * falha: a linha tem GPS, só não andou naquela rajada. A trocada fica fora da escolha por
- * 7 dias (guardado no banco, sobrevive ao servidor dormir), para não gastar
- * de novo o começo de cada pico com ela; depois volta a ser testada, caso
- * passe a ter ônibus com GPS.
+ * falha: a linha tem GPS, só não andou naquela rajada.
+ *
+ * Se isso acontece no pico de um dia útil, quando toda linha regular roda, a
+ * linha não tem GPS na Nubus: fica fora da escolha por 7 dias (guardado no
+ * banco, sobrevive ao servidor dormir) e depois volta a ser testada. Fora do
+ * pico (fim da noite, fim de semana) ela só não está rodando agora: sai só
+ * até a escolha do dia seguinte.
  */
 @Injectable()
 export class ColetorTroncais {
@@ -56,11 +62,13 @@ export class ColetorTroncais {
   private escolhidas?: { linhas: string[]; em: number; auto: boolean };
   private readonly descartadas = new Map<string, number>();
   private descartadasLidas?: Promise<void>;
+  private readonly trocadasHoje = new Set<string>();
   private readonly semOnibus = new Map<string, number>();
   private ultimaRajada = 0;
   private rajadas = 0;
   private rodando = false;
   private readonly faixas: [number, number][];
+  private readonly picos: [number, number][];
 
   constructor(
     private readonly linhas: LinhasService,
@@ -73,6 +81,7 @@ export class ColetorTroncais {
     private readonly cache: CachePersistente | null = null,
   ) {
     this.faixas = lerFaixas(p.horas);
+    this.picos = lerFaixas(p.pico);
   }
 
   /** Confere a cada minuto se é hora de uma rajada. */
@@ -119,6 +128,7 @@ export class ColetorTroncais {
       horas: this.p.horas,
       linhas: this.escolhidas?.linhas ?? null,
       descartadas: [...this.descartadas.keys()],
+      trocadasHoje: [...this.trocadasHoje],
       ultimaRajada: this.ultimaRajada
         ? new Date(this.ultimaRajada).toISOString()
         : null,
@@ -145,21 +155,25 @@ export class ColetorTroncais {
     return rendeu;
   }
 
-  /** Troca as troncais sem ônibus andando pelas próximas melhores. */
+  /** Troca as troncais sem ônibus com GPS pelas próximas melhores. */
   private async trocar(sem: string[], agora: number): Promise<void> {
+    const semGps =
+      horarioLocal(agora).tipoDia === 0 && dentroDasFaixas(agora, this.picos);
     for (const n of sem) {
-      this.descartadas.set(n, agora);
+      if (semGps) this.descartadas.set(n, agora);
+      else this.trocadasHoje.add(n);
       this.semOnibus.delete(n);
     }
-    await this.cache?.gravar(
-      CHAVE_DESCARTADAS,
-      Object.fromEntries(this.descartadas),
-    );
+    if (semGps)
+      await this.cache?.gravar(
+        CHAVE_DESCARTADAS,
+        Object.fromEntries(this.descartadas),
+      );
     try {
       const linhas = escolherTroncais(
         await this.paradas.malha(),
         this.p.quantasAuto,
-        new Set(this.descartadas.keys()),
+        this.foraDaEscolha(),
       );
       this.escolhidas = {
         linhas,
@@ -167,13 +181,17 @@ export class ColetorTroncais {
         auto: true,
       };
       this.logger.log(
-        `Coletor: ${sem.join(', ')} sem ônibus com GPS; troncais agora ${linhas.join(', ')}`,
+        `Coletor: ${sem.join(', ')} sem ônibus com GPS (${semGps ? 'pico: fora por uns dias' : 'fora até amanhã'}); troncais agora ${linhas.join(', ')}`,
       );
     } catch (e) {
       this.logger.warn(
         `Coletor: não deu para trocar as troncais: ${(e as Error).message}`,
       );
     }
+  }
+
+  private foraDaEscolha(): Set<string> {
+    return new Set([...this.descartadas.keys(), ...this.trocadasHoje]);
   }
 
   /** As trocadas antes do servidor reiniciar (uma vez só). */
@@ -208,6 +226,7 @@ export class ColetorTroncais {
       if (agora - em >= this.p.descarteMs) this.descartadas.delete(n);
     }
     this.semOnibus.clear();
+    this.trocadasHoje.clear();
     try {
       const linhas = escolherTroncais(
         await this.paradas.malha(),

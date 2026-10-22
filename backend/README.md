@@ -36,7 +36,8 @@ npm run test:e2e      # teste HTTP com a API externa simulada
 | `COLETA_QUANTAS`  | `10`                                           | Quantas troncais no modo `auto`             |
 | `COLETA_HORAS`    | `6-9,16-19`                                    | Faixas de horário de Natal das rajadas      |
 | `COLETA_INTERVALO_MS` | `900000`                                   | Intervalo entre rajadas                     |
-| `COLETA_DESCARTE_DIAS` | `7`                                       | Dias que uma troncal trocada fica fora da escolha |
+| `COLETA_PICO`     | `6-9,16-19`                                    | Pico de dia útil: linha sem nenhum ônibus com GPS aqui fica fora por `COLETA_DESCARTE_DIAS`; fora dele, só até amanhã |
+| `COLETA_DESCARTE_DIAS` | `7`                                       | Dias que uma troncal sem GPS fica fora da escolha |
 | `FERIADOS_EXTRA`  | (nenhum)                                       | Feriados a mais, "MM-DD" ou "AAAA-MM-DD", separados por vírgula |
 | `CORS_ORIGIN`      | (qualquer)                                     | Origens permitidas, separadas por vírgula   |
 

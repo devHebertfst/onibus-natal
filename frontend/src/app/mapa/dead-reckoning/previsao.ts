@@ -1,4 +1,4 @@
-import { AjustePrevisao, Parada } from '../../core/linha.models';
+import { Parada } from '../../core/linha.models';
 import { Frota } from './frota';
 import { Rota } from './rota';
 
@@ -44,35 +44,12 @@ export function rumoNaParada(frota: Frota, itinerario: string, paradas: Parada[]
   return rota && s !== undefined ? rota.rumoEm(s) : null;
 }
 
-/**
- * Quanto subtrair (min) de uma previsão de `minutos`: a fração da linha,
- * se ela tem; senão a correção geral, interpolada entre os horizontes (até
- * o 1º, proporcional; 0 na chegada).
- * A mesma conta do backend (`corrigir` em `linhas/placar.ts`).
- */
-export function corrigir(minutos: number, ajuste: AjustePrevisao | null | undefined): number {
-  if (!(minutos > 0)) return 0;
-  if (ajuste?.fracaoLinha != null) return ajuste.fracaoLinha * minutos;
-  const xs = ajuste?.minutos ?? [];
-  const ys = ajuste?.correcaoMin ?? [];
-  if (xs.length === 0) return 0;
-  if (minutos <= xs[0]) return (ys[0] * minutos) / xs[0];
-  for (let i = 1; i < xs.length; i++) {
-    if (minutos <= xs[i]) {
-      const f = (minutos - xs[i - 1]) / (xs[i] - xs[i - 1]);
-      return ys[i - 1] + f * (ys[i] - ys[i - 1]);
-    }
-  }
-  return ys.at(-1)!;
-}
-
 /** Ônibus que ainda vão passar pela parada neste itinerário, do mais próximo ao mais longe. */
 export function preverChegadas(
   frota: Frota,
   itinerario: string,
   paradas: Parada[],
   codigoParada: string,
-  ajuste?: AjustePrevisao,
 ): Previsao[] {
   const rota = frota.rota(itinerario);
   if (!rota) return [];
@@ -91,10 +68,8 @@ export function preverChegadas(
     const noCaminho = todas.filter(
       (s) => s > pos.s + MARGEM_PARADA_M && s < sParada - MARGEM_PARADA_M,
     ).length;
-    // Trecho a trecho, na velocidade que os ônibus da linha estão fazendo,
-    // menos o viés que o placar mediu nessa antecedência.
-    const conta = rota.perfil.segundosEntre(sParada - metros, sParada) / 60;
-    const minutos = Math.max(0, conta - corrigir(conta, ajuste));
+    // Trecho a trecho, na velocidade que os ônibus da linha estão fazendo.
+    const minutos = rota.perfil.segundosEntre(sParada - metros, sParada) / 60;
     previsoes.push({ onibus: animado.id, metros, minutos, paradas: noCaminho });
   }
   return previsoes.sort((a, b) => a.minutos - b.minutos);
